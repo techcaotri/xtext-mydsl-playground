@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Appenders>
+        <!-- Console appender with colored output -->
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%highlight{%-5level}{FATAL=red, ERROR=red, WARN=yellow, INFO=green, DEBUG=cyan, TRACE=blue} %msg%n"/>
+        </Console>
+        
+        <!-- File appender for detailed logs -->
+        <File name="File" fileName="mydsl-generator.log">
+            <PatternLayout pattern="%d{ISO8601} [%t] %-5level %logger{36} - %msg%n"/>
+        </File>
+    </Appenders>
+    
+    <Loggers>
+        <!-- MyDsl specific loggers -->
+        <Logger name="org.xtext.example.mydsl" level="INFO" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Logger>
+        
+        <!-- Xtext framework loggers -->
+        <Logger name="org.eclipse.xtext" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Logger>
+        
+        <!-- EMF loggers -->
+        <Logger name="org.eclipse.emf" level="WARN" additivity="false">
+            <AppenderRef ref="Console"/>
+            <AppenderRef ref="File"/>
+        </Logger>
+        
+        <!-- Root logger -->
+        <Root level="INFO">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>

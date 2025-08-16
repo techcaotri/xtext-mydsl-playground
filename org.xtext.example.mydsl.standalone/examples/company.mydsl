@@ -1,0 +1,226 @@
+model CompanyModel {
+    
+    // Import statements (if needed)
+    import com.example.utils.*
+    
+    // Enumerations
+    enum EmployeeStatus {
+        ACTIVE = 1,
+        ON_LEAVE = 2,
+        TERMINATED = 3,
+        RETIRED = 4
+    }
+    
+    enum Department {
+        ENGINEERING = 1,
+        SALES = 2,
+        MARKETING = 3,
+        HR = 4,
+        FINANCE = 5
+    }
+    
+    // Base Person entity
+    entity Person {
+        namespace: "com.example.company"
+        description: "Base class for all persons in the system"
+        
+        attributes {
+            protected string firstName
+            protected string lastName
+            protected string email {
+                get: true
+                set: true
+                description: "Primary email address"
+            }
+            protected int age = 0
+            protected string phoneNumber
+            private string ssn {
+                description: "Social Security Number - encrypted"
+            }
+        }
+        
+        methods {
+            public string getFullName() const
+            public virtual void display() const
+            public bool isAdult() const noexcept
+            protected void validateEmail(string& email) const
+        }
+        
+        constructors {
+            public Person()
+            public Person(string& firstName, string& lastName)
+            public explicit Person(string& firstName, string& lastName, int age)
+        }
+        
+        options {
+            copy_semantics: true
+            move_semantics: true
+            comparison: true
+            serialization: true
+        }
+    }
+    
+    // Employee entity extending Person
+    entity Employee extends Person {
+        namespace: "com.example.company"
+        description: "Employee information and management"
+        
+        attributes {
+            private string employeeId {
+                get: true
+                description: "Unique employee identifier"
+            }
+            private double salary = 0.0 {
+                get: true
+                set: true
+                description: "Annual salary in USD"
+            }
+            private Department department
+            private EmployeeStatus status = 1
+            private string manager
+            private vector<string> skills
+            private map<string, string> certifications
+        }
+        
+        methods {
+            public override void display() const
+            public double calculateBonus() const
+            public void updateStatus(EmployeeStatus& newStatus)
+            public bool isActive() const noexcept
+            public void addSkill(string& skill)
+            public void addCertification(string& name, string& date)
+            private void encryptSensitiveData()
+        }
+        
+        constructors {
+            public Employee()
+            public explicit Employee(string& employeeId)
+            public Employee(string& firstName, string& lastName, string& employeeId)
+        }
+        
+        static {
+            private static int totalEmployees = 0
+            public static string companyName = "TechCorp"
+        }
+        
+        options {
+            threading: true
+            operators: true
+        }
+    }
+    
+    // Manager entity
+    entity Manager extends Employee {
+        namespace: "com.example.company"
+        description: "Manager with team management capabilities"
+        
+        attributes {
+            private vector<string> teamMembers
+            private double budget = 0.0
+            private int teamSize = 0
+        }
+        
+        methods {
+            public void addTeamMember(string& employeeId)
+            public void removeTeamMember(string& employeeId)
+            public double getTeamBudget() const
+            public override double calculateBonus() const
+            public void approveTimeOff(string& employeeId, int days)
+        }
+        
+        inner {
+            entity TeamMetrics {
+                attributes {
+                    public double productivity
+                    public int completedProjects
+                    public double satisfaction
+                }
+            }
+        }
+    }
+    
+    // Customer entity
+    entity Customer extends Person {
+        namespace: "com.example.company"
+        description: "Customer information"
+        
+        attributes {
+            private string customerId {
+                get: true
+                description: "Unique customer identifier"
+            }
+            private double creditLimit = 1000.0
+            private double balance = 0.0
+            private bool isPremium = false
+            private vector<string> orderHistory
+        }
+        
+        methods {
+            public void placeOrder(string& orderId)
+            public double getAvailableCredit() const
+            public void upgradeToPremium()
+            public bool canPurchase(double amount) const noexcept
+        }
+        
+        friends {
+            friend class BillingSystem
+            friend "void processPayment(Customer&, double)"
+        }
+    }
+    
+    // Project entity
+    entity Project {
+        namespace: "com.example.company"
+        description: "Project management entity"
+        
+        attributes {
+            private string projectId
+            private string name
+            private string description
+            private string managerId
+            private vector<string> teamMembers
+            private double budget = 0.0
+            private string startDate
+            private string endDate
+            private bool isActive = true
+        }
+        
+        methods {
+            public void assignManager(string& managerId)
+            public void addTeamMember(string& employeeId)
+            public double getRemainingBudget() const
+            public bool isOverdue() const
+            public void complete()
+        }
+        
+        options {
+            serialization: true
+            comparison: true
+        }
+    }
+    
+    // Address value object
+    entity Address {
+        namespace: "com.example.company"
+        description: "Address value object"
+        
+        attributes {
+            public string street
+            public string city
+            public string state
+            public string zipCode
+            public string country = "USA"
+        }
+        
+        methods {
+            public string getFullAddress() const
+            public bool isValid() const
+        }
+        
+        options {
+            copy_semantics: true
+            operators: true
+            serialization: true
+        }
+    }
+}

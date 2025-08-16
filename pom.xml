@@ -27,6 +27,7 @@
 		<module>org.xtext.example.mydsl.target</module>
 		<module>org.xtext.example.mydsl.tests</module>
 		<module>org.xtext.example.mydsl.ui.tests</module>
+		<module>org.xtext.example.mydsl.standalone</module>
 	</modules>
 	<dependencyManagement>
 		<dependencies>
@@ -60,16 +61,6 @@
 						</artifact>
 					</target>
 					<environments>
-						<environment>
-							<os>macosx</os>
-							<ws>cocoa</ws>
-							<arch>x86_64</arch>
-						</environment>
-						<environment>
-							<os>win32</os>
-							<ws>win32</ws>
-							<arch>x86_64</arch>
-						</environment>
 						<environment>
 							<os>linux</os>
 							<ws>gtk</ws>
