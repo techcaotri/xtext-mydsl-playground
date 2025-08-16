@@ -3,7 +3,7 @@
 # Build script for MyDsl Standalone Generator
 
 echo "========================================="
-echo "Building MyDsl Standalone Generator"
+echo "Building MyDsl Standalone Generator v2.0"
 echo "========================================="
 
 # Get script directory
@@ -22,12 +22,12 @@ if [ ! -f "pom.xml" ]; then
     exit 1
 fi
 
-# Step 1: Build the parent project first
-echo -e "\n${YELLOW}Step 1: Building parent project...${NC}"
+# Step 1: Build the parent project first (includes all generators)
+echo -e "\n${YELLOW}Step 1: Building parent project with generators...${NC}"
 cd "$PARENT_DIR/org.xtext.example.mydsl" || exit 1
 
 if mvn clean install -DskipTests -T 12; then
-    echo -e "${GREEN}✓ Parent project built successfully${NC}"
+    echo -e "${GREEN}✔ Parent project built successfully${NC}"
 else
     echo -e "${RED}✗ Failed to build parent project${NC}"
     exit 1
@@ -38,7 +38,7 @@ echo -e "\n${YELLOW}Step 2: Building standalone project...${NC}"
 cd "$SCRIPT_DIR" || exit 1
 
 if mvn clean package -T 12; then
-    echo -e "${GREEN}✓ Standalone project built successfully${NC}"
+    echo -e "${GREEN}✔ Standalone project built successfully${NC}"
 else
     echo -e "${RED}✗ Failed to build standalone project${NC}"
     exit 1
@@ -47,13 +47,13 @@ fi
 # Step 3: Verify the JAR was created
 JAR_FILE="target/org.xtext.example.mydsl.standalone-1.0.0-SNAPSHOT-jar-with-dependencies.jar"
 if [ -f "$JAR_FILE" ]; then
-    echo -e "\n${GREEN}✓ Standalone JAR created successfully:${NC}"
+    echo -e "\n${GREEN}✔ Standalone JAR created successfully:${NC}"
     echo "  $JAR_FILE"
     echo "  Size: $(du -h "$JAR_FILE" | cut -f1)"
     
     # Create convenience symlink
     ln -sf "$JAR_FILE" mydsl-standalone.jar
-    echo -e "\n${GREEN}✓ Created symlink: mydsl-standalone.jar${NC}"
+    echo -e "\n${GREEN}✔ Created symlink: mydsl-standalone.jar${NC}"
 else
     echo -e "${RED}✗ JAR file not found: $JAR_FILE${NC}"
     exit 1
@@ -80,7 +80,7 @@ java -jar "$JAR_FILE" "$@"
 EOF
 
 chmod +x run-mydsl.sh
-echo -e "${GREEN}✓ Created run script: run-mydsl.sh${NC}"
+echo -e "${GREEN}✔ Created run script: run-mydsl.sh${NC}"
 
 echo -e "\n========================================="
 echo -e "${GREEN}Build completed successfully!${NC}"
@@ -93,6 +93,12 @@ echo "For help:"
 echo "  ./run-mydsl.sh -h"
 echo ""
 echo "Examples:"
-echo "  ./run-mydsl.sh test.mydsl"
-echo "  ./run-mydsl.sh -m -o generated -p proto test.mydsl"
+echo "  Generate C++ only:"
+echo "    ./run-mydsl.sh model.mydsl"
+echo ""
+echo "  Generate C++ and Protobuf:"
+echo "    ./run-mydsl.sh -m model.mydsl"
+echo ""
+echo "  Generate Protobuf only with binary descriptor:"
+echo "    ./run-mydsl.sh -n -m -b model.mydsl"
 echo ""

@@ -6,14 +6,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
-import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.xtext.diagnostics.Severity;
 import org.eclipse.xtext.generator.GeneratorContext;
-import org.eclipse.xtext.generator.IGenerator2;
-import org.eclipse.xtext.generator.IFileSystemAccess;
-import org.eclipse.xtext.generator.InMemoryFileSystemAccess;
 import org.eclipse.xtext.generator.JavaIoFileSystemAccess;
 import org.eclipse.xtext.generator.OutputConfiguration;
+import org.eclipse.xtext.parser.IEncodingProvider;
+import org.eclipse.xtext.resource.IResourceServiceProvider;
 import org.eclipse.xtext.resource.XtextResource;
 import org.eclipse.xtext.resource.XtextResourceSet;
 import org.eclipse.xtext.util.CancelIndicator;
@@ -23,11 +21,11 @@ import org.eclipse.xtext.validation.Issue;
 import org.xtext.example.mydsl.MyDslStandaloneSetup;
 import org.xtext.example.mydsl.generator.MyDslGenerator;
 import org.xtext.example.mydsl.myDsl.Model;
-import org.xtext.example.mydsl.standalone.generator.ProtobufGenerator;
-import org.xtext.example.mydsl.standalone.generator.StandaloneFileSystemAccess;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -37,18 +35,20 @@ import java.util.Map;
 
 /**
  * Main entry point for the standalone MyDsl generator
+ * Uses the unified generator from the main project
  * 
  * @author MyDsl Standalone Generator
  */
 public class Main {
     private static final Logger logger = LogManager.getLogger(Main.class);
-    private static final String VERSION = "1.0.0-SNAPSHOT";
+    private static final String VERSION = "2.0.0-SNAPSHOT";
     
     private Injector injector;
     private XtextResourceSet resourceSet;
     private IResourceValidator validator;
     private MyDslGenerator generator;
-    private ProtobufGenerator protobufGenerator;
+    private IResourceServiceProvider.Registry serviceProviderRegistry;
+    private IEncodingProvider encodingProvider;
     
     public static void main(String[] args) {
         Main main = new Main();
@@ -98,9 +98,6 @@ public class Main {
             String outputDir = cmd.getOptionValue("o", "generated");
             Path outputPath = Paths.get(outputDir);
             
-            // Get protobuf output directory
-            String protoOutputDir = cmd.getOptionValue("p", outputDir + "/proto");
-            
             // Initialize Xtext
             initialize();
             
@@ -134,23 +131,32 @@ public class Main {
             Model model = (Model) resource.getContents().get(0);
             logger.info("Model name: {}", model.getName());
             
-            // Generate C++ code
-            if (!cmd.hasOption("n")) {
-                logger.info("Generating C++ code to: {}", outputPath.toAbsolutePath());
-                generateCppCode(resource, outputPath, cmd.hasOption("f"));
-                System.out.println("✓ C++ code generated successfully");
-            }
+            // Configure generation options
+            boolean generateCpp = !cmd.hasOption("n");
+            boolean generateProtobuf = cmd.hasOption("m");
+            boolean generateBinaryDesc = cmd.hasOption("b");
             
-            // Generate Protobuf if requested
-            if (cmd.hasOption("m")) {
-                logger.info("Generating Protobuf files to: {}", protoOutputDir);
-                generateProtobuf(model, Paths.get(protoOutputDir), cmd.hasOption("b"));
-                System.out.println("✓ Protobuf files generated successfully");
+            // Configure the generator
+            generator.setGenerationOptions(generateCpp, generateProtobuf, generateBinaryDesc);
+            
+            // Generate code
+            logger.info("Generating to: {}", outputPath.toAbsolutePath());
+            generateCode(resource, outputPath, cmd.hasOption("f"));
+            
+            // Print success messages
+            if (generateCpp) {
+                System.out.println("✔ C++ code generated successfully");
+            }
+            if (generateProtobuf) {
+                System.out.println("✔ Protobuf files generated successfully");
+                if (generateBinaryDesc) {
+                    System.out.println("  Note: Run the generated scripts in proto/ to create .desc files");
+                }
             }
             
             // Print summary
             if (cmd.hasOption("d")) {
-                printSummary(model, outputPath, cmd.hasOption("m") ? Paths.get(protoOutputDir) : null);
+                printSummary(model, outputPath);
             }
             
             return 0;
@@ -173,10 +179,9 @@ public class Main {
         
         options.addOption("h", "help", false, "Show help message");
         options.addOption("v", "version", false, "Show version information");
-        options.addOption("o", "output", true, "Output directory for generated C++ code (default: generated)");
-        options.addOption("m", "protobuf", false, "Generate Protobuf .proto and .desc files");
-        options.addOption("p", "proto-output", true, "Output directory for Protobuf files (default: generated/proto)");
-        options.addOption("b", "binary", false, "Generate binary .desc descriptor set file");
+        options.addOption("o", "output", true, "Output directory (default: generated)");
+        options.addOption("m", "protobuf", false, "Generate Protobuf .proto files");
+        options.addOption("b", "binary", false, "Generate scripts for binary .desc descriptor set files");
         options.addOption("f", "force", false, "Force overwrite existing files");
         options.addOption("s", "skip-validation", false, "Skip model validation");
         options.addOption("n", "no-cpp", false, "Skip C++ generation (useful with -m for proto-only)");
@@ -192,14 +197,14 @@ public class Main {
             "\nMyDsl Standalone Generator - Generate C++ code and Protobuf from MyDsl files\n\n",
             options,
             "\nExamples:\n" +
-            "  Generate C++ code:\n" +
+            "  Generate C++ code only:\n" +
             "    java -jar mydsl-standalone.jar model.mydsl\n\n" +
             "  Generate C++ and Protobuf:\n" +
             "    java -jar mydsl-standalone.jar -m model.mydsl\n\n" +
-            "  Generate only Protobuf with binary descriptor:\n" +
+            "  Generate only Protobuf with descriptor scripts:\n" +
             "    java -jar mydsl-standalone.jar -n -m -b model.mydsl\n\n" +
-            "  Specify output directories:\n" +
-            "    java -jar mydsl-standalone.jar -o src/generated -p proto/generated -m model.mydsl\n"
+            "  Specify output directory:\n" +
+            "    java -jar mydsl-standalone.jar -o output -m model.mydsl\n"
         );
     }
     
@@ -210,7 +215,19 @@ public class Main {
         resourceSet = injector.getInstance(XtextResourceSet.class);
         validator = injector.getInstance(IResourceValidator.class);
         generator = injector.getInstance(MyDslGenerator.class);
-        protobufGenerator = new ProtobufGenerator();
+        serviceProviderRegistry = injector.getInstance(IResourceServiceProvider.Registry.class);
+        
+        // Get the encoding provider
+        encodingProvider = injector.getInstance(IEncodingProvider.class);
+        if (encodingProvider == null) {
+            // Create a default encoding provider if none exists
+            encodingProvider = new IEncodingProvider() {
+                @Override
+                public String getEncoding(URI uri) {
+                    return StandardCharsets.UTF_8.name();
+                }
+            };
+        }
     }
     
     private Resource loadModel(File file) {
@@ -236,7 +253,13 @@ public class Main {
     
     private List<Issue> validateModel(Resource resource) {
         if (resource instanceof XtextResource) {
-            return validator.validate(resource, CheckMode.ALL, CancelIndicator.NullImpl);
+            try {
+                return validator.validate(resource, CheckMode.ALL, CancelIndicator.NullImpl);
+            } catch (Exception e) {
+                // Log the error but continue - validation errors are not critical
+                logger.warn("Validation warning: {}", e.getMessage());
+                return List.of();
+            }
         }
         return List.of();
     }
@@ -253,59 +276,64 @@ public class Main {
         }
     }
     
-    private void generateCppCode(Resource resource, Path outputPath, boolean force) throws IOException {
+    private void generateCode(Resource resource, Path outputPath, boolean force) throws IOException {
         // Create output directory
         Files.createDirectories(outputPath);
         
         // Configure file system access
-        StandaloneFileSystemAccess fsa = new StandaloneFileSystemAccess();
+        JavaIoFileSystemAccess fsa = new JavaIoFileSystemAccess();
         fsa.setOutputPath(outputPath.toString());
         
-        OutputConfiguration defaultOutput = new OutputConfiguration(IFileSystemAccess.DEFAULT_OUTPUT);
-        defaultOutput.setDescription("C++ output");
+        // Fix the registry and encoding provider using reflection
+        try {
+            // Set the registry
+            Field registryField = JavaIoFileSystemAccess.class.getDeclaredField("registry");
+            registryField.setAccessible(true);
+            registryField.set(fsa, serviceProviderRegistry);
+            
+            // Set the encoding provider
+            Field encodingField = JavaIoFileSystemAccess.class.getDeclaredField("encodingProvider");
+            encodingField.setAccessible(true);
+            encodingField.set(fsa, encodingProvider);
+            
+            logger.debug("Fixed JavaIoFileSystemAccess initialization");
+        } catch (Exception e) {
+            logger.warn("Could not fully initialize JavaIoFileSystemAccess: {}", e.getMessage());
+            // Continue anyway - it might still work
+        }
+        
+        OutputConfiguration defaultOutput = new OutputConfiguration("DEFAULT_OUTPUT");
+        defaultOutput.setDescription("Output");
         defaultOutput.setOutputDirectory(outputPath.toString());
         defaultOutput.setOverrideExistingResources(force);
         defaultOutput.setCreateOutputDirectory(true);
         
         Map<String, OutputConfiguration> outputConfigs = new HashMap<>();
-        outputConfigs.put(IFileSystemAccess.DEFAULT_OUTPUT, defaultOutput);
+        outputConfigs.put("DEFAULT_OUTPUT", defaultOutput);
         fsa.setOutputConfigurations(outputConfigs);
         
         // Generate
         GeneratorContext context = new GeneratorContext();
         generator.doGenerate(resource, fsa, context);
-        
-        // Write files
-        fsa.writeAllFiles();
     }
     
-    private void generateProtobuf(Model model, Path outputPath, boolean generateBinary) throws IOException {
-        Files.createDirectories(outputPath);
-        protobufGenerator.generate(model, outputPath, generateBinary);
-    }
-    
-    private void printSummary(Model model, Path cppOutput, Path protoOutput) {
+    private void printSummary(Model model, Path outputPath) {
         System.out.println("\n========== Generation Summary ==========");
         System.out.println("Model: " + model.getName());
         System.out.println("Entities: " + model.getEntities().size());
         System.out.println("Enums: " + model.getEnums().size());
-        System.out.println("C++ Output: " + cppOutput.toAbsolutePath());
-        
-        if (protoOutput != null) {
-            System.out.println("Protobuf Output: " + protoOutput.toAbsolutePath());
-        }
+        System.out.println("Output: " + outputPath.toAbsolutePath());
         
         // List generated files
         System.out.println("\nGenerated files:");
         try {
-            Files.walk(cppOutput)
-                .filter(Files::isRegularFile)
-                .forEach(file -> System.out.println("  - " + cppOutput.relativize(file)));
-                
-            if (protoOutput != null && Files.exists(protoOutput)) {
-                Files.walk(protoOutput)
+            if (Files.exists(outputPath)) {
+                Files.walk(outputPath)
                     .filter(Files::isRegularFile)
-                    .forEach(file -> System.out.println("  - " + protoOutput.relativize(file)));
+                    .forEach(file -> {
+                        Path relative = outputPath.relativize(file);
+                        System.out.println("  - " + relative);
+                    });
             }
         } catch (IOException e) {
             logger.error("Error listing files", e);

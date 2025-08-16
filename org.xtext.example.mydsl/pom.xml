@@ -8,9 +8,47 @@
 	</parent>
 	<artifactId>org.xtext.example.mydsl</artifactId>
 	<packaging>eclipse-plugin</packaging>
+	<dependencies>
+		<!-- Add Protobuf dependency for Maven builds -->
+		<dependency>
+			<groupId>com.google.protobuf</groupId>
+			<artifactId>protobuf-java</artifactId>
+			<version>3.21.12</version>
+			<!-- Mark as provided since it's bundled in lib folder for Eclipse -->
+			<scope>provided</scope>
+		</dependency>
+	</dependencies>
 
 	<build>
 		<plugins>
+			<!-- Copy protobuf JAR to lib folder during build -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<version>3.6.0</version>
+				<executions>
+					<execution>
+						<id>copy-dependencies</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>copy</goal>
+						</goals>
+						<configuration>
+							<artifactItems>
+								<artifactItem>
+									<groupId>com.google.protobuf</groupId>
+									<artifactId>protobuf-java</artifactId>
+									<version>3.21.12</version>
+									<outputDirectory>${project.basedir}/lib</outputDirectory>
+									<destFileName>protobuf-java-3.21.12.jar</destFileName>
+								</artifactItem>
+							</artifactItems>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			
+			<!-- Existing plugins... -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
@@ -41,6 +79,12 @@
 						<groupId>org.eclipse.xtext</groupId>
 						<artifactId>org.eclipse.xtext.xtext.generator.dependencies</artifactId>
 						<version>${xtextVersion}</version>
+					</dependency>
+        			<!-- Add Protobuf dependency -->
+					<dependency>
+						<groupId>com.google.protobuf</groupId>
+						<artifactId>protobuf-java</artifactId>
+						<version>3.21.12</version>
 					</dependency>
 				</dependencies>
 			</plugin>
