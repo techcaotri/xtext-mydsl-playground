@@ -1,0 +1,71 @@
+.
+├── build.properties
+├── xtend-gen
+│   └── org
+│       └── xtext
+│           └── example
+│               └── mydsl
+│                   └── tests
+│                       ├── GeneratorTest.java
+│                       └── MyDslParsingTest.java
+├── pom.xml
+├── META-INF
+│   └── MANIFEST.MF
+├── src-gen
+│   └── org
+│       └── xtext
+│           └── example
+│               └── mydsl
+│                   └── tests
+│                       └── MyDslInjectorProvider.java
+├── target
+│   ├── maven-archiver
+│   │   └── pom.properties
+│   ├── skippedP2Dependencies.txt
+│   ├── xtend
+│   │   ├── stubs4701920494963
+│   │   │   └── org
+│   │   │       └── xtext
+│   │   │           └── example
+│   │   │               └── mydsl
+│   │   │                   └── tests
+│   │   │                       ├── GeneratorTest.class
+│   │   │                       ├── MyDslParsingTest.java
+│   │   │                       ├── MyDslParsingTest.class
+│   │   │                       └── GeneratorTest.java
+│   │   ├── classes6951986676942
+│   │   │   └── org
+│   │   │       └── xtext
+│   │   │           └── example
+│   │   │               └── mydsl
+│   │   │                   └── tests
+│   │   │                       ├── MyDslInjectorProvider$1.class
+│   │   │                       ├── MyDslInjectorProvider$2.class
+│   │   │                       └── MyDslInjectorProvider.class
+│   ├── generated-sources
+│   │   └── annotations
+│   ├── p2artifacts.xml
+│   ├── p2content.xml
+│   ├── MANIFEST.MF
+│   ├── org.xtext.example.mydsl.tests-1.0.0-SNAPSHOT.jar
+│   ├── local-artifacts.properties
+│   └── classes
+│       └── org
+│           └── xtext
+│               └── example
+│                   └── mydsl
+│                       └── tests
+│                           ├── MyDslParsingTest.class
+│                           ├── GeneratorTest.class
+│                           ├── MyDslInjectorProvider$2.class
+│                           ├── MyDslInjectorProvider.class
+│                           ├── GeneratorTest.xtend
+│                           └── MyDslInjectorProvider$1.class
+├── src
+│   └── org
+│       └── xtext
+│           └── example
+│               └── mydsl
+│                   └── tests
+│                       ├── MyDslParsingTest.xtend
+│                       └── GeneratorTest.xtend

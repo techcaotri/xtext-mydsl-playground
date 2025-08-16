@@ -1,0 +1,5 @@
+        // Clean up test fixture
+        delete testInstance;
+        testInstance = nullptr;
+        
+        // Additional cleanup if needed

@@ -1,0 +1,5 @@
+        // Initialize test fixture
+        testInstance = new {{CLASS_NAME}}();
+        
+        // Additional setup if needed
+        // TODO: Add test-specific initialization

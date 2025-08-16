@@ -1,0 +1,3 @@
+        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << "Application terminated with error." << std::endl;
+

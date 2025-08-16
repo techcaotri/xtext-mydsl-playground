@@ -1,0 +1,332 @@
+grammar org.xtext.example.mydsl.MyDsl with org.eclipse.xtext.common.Terminals
+
+import "http://www.eclipse.org/emf/2002/Ecore" as ecore
+generate myDsl "http://www.xtext.org/example/mydsl/MyDsl"
+
+// Root model element
+Model:
+    'model' name=ID '{'
+        (imports+=Import)*
+        (entities+=Entity)*
+        (enums+=Enum)*
+        (typedefs+=TypeDef)*
+    '}';
+
+// Import statements
+Import:
+    'import' importedNamespace=QualifiedNameWithWildcard;
+
+// Entity definition (C++ class)
+Entity:
+    'entity' name=ID ('extends' superType=[Entity|QualifiedName])? '{'
+        ('namespace' ':' namespace=STRING)?
+        ('description' ':' description=STRING)?
+        
+        // Attributes section
+        ('attributes' '{' 
+            attributes+=Attribute*
+        '}')?
+        
+        // Methods section
+        ('methods' '{' 
+            methods+=Method*
+        '}')?
+        
+        // Constructors section
+        ('constructors' '{' 
+            constructors+=Constructor*
+        '}')?
+        
+        // Options/Features
+        ('options' '{' 
+            options+=Option*
+        '}')?
+        
+        // Inner classes
+        ('inner' '{' 
+            innerClasses+=Entity*
+        '}')?
+        
+        // Static members
+        ('static' '{' 
+            staticMembers+=StaticMember*
+        '}')?
+        
+        // Friend declarations
+        ('friends' '{' 
+            friends+=FriendDeclaration*
+        '}')?
+    '}';
+
+// Attribute definition
+Attribute:
+    visibility=Visibility 
+    (isStatic?='static')? 
+    (isConst?='const')? 
+    (isMutable?='mutable')?
+    type=Type 
+    name=ID 
+    ('=' defaultValue=PrimaryExpression)?
+    ('{' 
+        ('get' ':' hasGetter?='true')?
+        ('set' ':' hasSetter?='true')?
+        ('description' ':' description=STRING)?
+    '}')?
+    ';'?;
+
+// Method definition
+Method:
+    visibility=Visibility 
+    (isStatic?='static')? 
+    (isVirtual?='virtual')? 
+    (isInline?='inline')?
+    returnType=Type 
+    name=ID 
+    '(' (parameters+=Parameter (',' parameters+=Parameter)*)? ')'
+    (isConst?='const')?
+    (isNoexcept?='noexcept')?
+    (isOverride?='override')?
+    (isFinal?='final')?
+    (isPureVirtual?='=' '0')?
+    ('{' 
+        ('description' ':' description=STRING)?
+        ('body' ':' body=CodeBlock)?
+    '}')?
+    ';'?;
+
+// Constructor definition
+Constructor:
+    visibility=Visibility
+    (isExplicit?='explicit')?
+    name=ID
+    '(' (parameters+=Parameter (',' parameters+=Parameter)*)? ')'
+    (isNoexcept?='noexcept')?
+    (':' initializerList+=Initializer (',' initializerList+=Initializer)*)?
+    ('{' 
+        ('body' ':' body=CodeBlock)?
+    '}')?
+    ';'?;
+
+// Initializer for constructor
+Initializer:
+    member=ID '(' value=PrimaryExpression ')';
+
+// Parameter definition
+Parameter:
+    (isConst?='const')? 
+    type=Type 
+    (isReference?='&' | isPointer?='*' | isRValueReference?='&&')? 
+    name=ID 
+    ('=' defaultValue=PrimaryExpression)?;
+
+// Static member
+StaticMember:
+    visibility=Visibility 
+    'static' 
+    (isConst?='const')? 
+    type=Type 
+    name=ID 
+    ('=' initialValue=PrimaryExpression)?
+    ';'?;
+
+// Friend declaration
+FriendDeclaration:
+    'friend' (friendClass=[Entity|QualifiedName] | friendFunction=STRING) ';'?;
+
+// Options for code generation
+Option:
+    ThreadingOption | SerializationOption | OperatorsOption | 
+    CopySemanticsOption | MoveSemanticsOption | ComparisonOption | 
+    StreamingOption | CustomOption;
+
+ThreadingOption:
+    'threading' ':' threading=BooleanLiteral;
+
+SerializationOption:
+    'serialization' ':' serialization=BooleanLiteral;
+
+OperatorsOption:
+    'operators' ':' operators=BooleanLiteral;
+
+CopySemanticsOption:
+    'copy_semantics' ':' copySemantics=BooleanLiteral;
+
+MoveSemanticsOption:
+    'move_semantics' ':' moveSemantics=BooleanLiteral;
+
+ComparisonOption:
+    'comparison' ':' comparison=BooleanLiteral;
+
+StreamingOption:
+    'streaming' ':' streaming=BooleanLiteral;
+
+CustomOption:
+    name=ID ':' value=STRING;
+
+// Enum definition
+Enum:
+    'enum' (isClass?='class')? name=ID 
+    (':' underlyingType=Type)? '{'
+        values+=EnumValue (',' values+=EnumValue)* ','?
+    '}';
+
+EnumValue:
+    name=ID ('=' value=INT)?;
+
+// Typedef definition
+TypeDef:
+    'typedef' type=Type alias=ID ';'?
+    | 'using' alias=ID '=' type=Type ';'?;
+
+// Type system - Fixed to avoid left recursion
+Type:
+    BaseType (
+        {ArrayType.elementType=current} '[' size=INT? ']' |
+        {PointerType.pointedType=current} '*' (isConst?='const')? |
+        {ReferenceType.referencedType=current} '&' (isConst?='const')?
+    )*;
+
+BaseType returns Type:
+    PrimitiveType | 
+    CustomType | 
+    TemplateType | 
+    FunctionType |
+    '(' Type ')';
+
+PrimitiveType:
+    name=PrimitiveTypeName;
+
+CustomType:
+    name=[Entity|QualifiedName];
+
+TemplateType:
+    name=ID '<' templateArgs+=Type (',' templateArgs+=Type)* '>';
+
+FunctionType:
+    'function' '<' returnType=Type '(' (paramTypes+=Type (',' paramTypes+=Type)*)? ')' '>';
+
+// Primitive type names
+enum PrimitiveTypeName:
+    VOID='void' |
+    BOOL='bool' |
+    CHAR='char' |
+    WCHAR='wchar_t' |
+    CHAR16='char16_t' |
+    CHAR32='char32_t' |
+    SHORT='short' |
+    INT='int' |
+    LONG='long' |
+    LONGLONG='long long' |
+    FLOAT='float' |
+    DOUBLE='double' |
+    LONGDOUBLE='long double' |
+    SIZE_T='size_t' |
+    STRING='string' |
+    AUTO='auto';
+
+// Visibility modifiers
+enum Visibility:
+    PUBLIC='public' |
+    PRIVATE='private' |
+    PROTECTED='protected';
+
+// Expression - Fixed to avoid left recursion
+Expression:
+    OrExpression;
+
+OrExpression returns Expression:
+    AndExpression ({BinaryExpression.left=current} operator='||' right=AndExpression)*;
+
+AndExpression returns Expression:
+    EqualityExpression ({BinaryExpression.left=current} operator='&&' right=EqualityExpression)*;
+
+EqualityExpression returns Expression:
+    RelationalExpression ({BinaryExpression.left=current} operator=('==' | '!=') right=RelationalExpression)*;
+
+RelationalExpression returns Expression:
+    AdditiveExpression ({BinaryExpression.left=current} operator=('<' | '>' | '<=' | '>=') right=AdditiveExpression)*;
+
+AdditiveExpression returns Expression:
+    MultiplicativeExpression ({BinaryExpression.left=current} operator=('+' | '-') right=MultiplicativeExpression)*;
+
+MultiplicativeExpression returns Expression:
+    UnaryExpression ({BinaryExpression.left=current} operator=('*' | '/' | '%') right=UnaryExpression)*;
+
+// UnaryExpression - using datatype rule for operator to avoid issues
+UnaryExpression returns Expression:
+    PostfixExpression |
+    {UnaryExpression} operator=UnaryOp operand=UnaryExpression;
+
+// Define unary operators as a datatype rule
+UnaryOp returns ecore::EString:
+    '!' | '-' | '+' | '++' | '--' | '&' | '*';
+
+PostfixExpression returns Expression:
+    PrimaryExpression (
+        {CallExpression.function=current} '(' (arguments+=Expression (',' arguments+=Expression)*)? ')' |
+        {MemberExpression.object=current} '.' member=ID |
+        {ArrayAccessExpression.array=current} '[' index=Expression ']'
+    )*;
+
+PrimaryExpression returns Expression:
+    LiteralExpression |
+    IdentifierExpression |
+    '(' Expression ')';
+
+LiteralExpression:
+    value=Literal;
+
+Literal:
+    StringLiteral | IntLiteral | FloatLiteral | BooleanLiteral | NullLiteral;
+
+StringLiteral:
+    value=STRING;
+
+IntLiteral:
+    value=INT;
+
+FloatLiteral:
+    value=FLOAT_NUMBER;
+
+BooleanLiteral:
+    value=('true' | 'false');
+
+NullLiteral:
+    {NullLiteral} ('nullptr' | 'NULL');
+
+IdentifierExpression:
+    id=ID;
+
+// Note: BinaryExpression, UnaryExpression, CallExpression, MemberExpression, and ArrayAccessExpression
+// are created by actions in the expression rules above, so we don't define them separately here
+
+// Code block for method bodies
+CodeBlock:
+    statements+=Statement*;
+
+Statement:
+    {Statement} content=STRING;
+
+// Qualified name with wildcard support
+QualifiedNameWithWildcard:
+    QualifiedName '.*'?;
+
+// Qualified name
+QualifiedName:
+    ID ('.' ID)*;
+
+// Float number terminal
+terminal FLOAT_NUMBER:
+    INT '.' INT (('e'|'E') ('+'|'-')? INT)?
+    | INT ('e'|'E') ('+'|'-')? INT;
+
+// Override ID to allow C++ keywords as identifiers in certain contexts
+terminal ID:
+    '^'?('a'..'z'|'A'..'Z'|'_') ('a'..'z'|'A'..'Z'|'_'|'0'..'9')*;
+
+// C++ style comments
+terminal SL_COMMENT:
+    '//' !('\n'|'\r')* ('\r'? '\n')?;
+
+terminal ML_COMMENT:
+    '/*' -> '*/';

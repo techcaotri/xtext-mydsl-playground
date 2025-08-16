@@ -1,0 +1,5 @@
+{{#FOREACH MEMBERS AS member}}
+    {{member.type}} m_{{member.name}}{{#IF member.hasDefault}} = {{member.defaultValue}}{{/IF}};{{#IF member.description}} // {{member.description}}{{/IF}}
+{{/FOREACH}}
+
+

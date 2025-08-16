@@ -1,0 +1,13 @@
+model TestModel {
+    entity Person {
+        attributes {
+            private string name
+            private int age
+        }
+        methods {
+            public string getName() {
+                description: "Get name"
+            }
+        }
+    }
+}

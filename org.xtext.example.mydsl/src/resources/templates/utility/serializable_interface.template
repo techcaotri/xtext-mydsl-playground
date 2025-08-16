@@ -1,0 +1,37 @@
+#ifndef SERIALIZABLE_H
+#define SERIALIZABLE_H
+
+#include <string>
+#include <memory>
+
+/**
+ * @interface ISerializable
+ * @brief Interface for serializable objects
+ */
+class ISerializable {
+public:
+    virtual ~ISerializable() = default;
+    
+    /**
+     * Serialize object to string
+     * @return Serialized representation
+     */
+    virtual std::string serialize() const = 0;
+    
+    /**
+     * Deserialize object from string
+     * @param data Serialized data
+     * @return True if successful
+     */
+    virtual bool deserialize(const std::string& data) = 0;
+    
+    /**
+     * Get serialization version
+     * @return Version number
+     */
+    virtual int getSerializationVersion() const { return 1; }
+};
+
+#endif // SERIALIZABLE_H
+
+

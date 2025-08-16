@@ -1,0 +1,12 @@
+    // Initialize member variables
+    {{INITIALIZATIONS}}
+    
+    {{#IF HAS_THREADING}}
+    // Thread safety initialization
+    // Mutex is initialized automatically
+    {{/IF}}
+    
+    // Custom initialization logic
+    // TODO: Add any additional initialization here
+
+
