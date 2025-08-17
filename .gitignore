@@ -23,5 +23,6 @@
 hs_err_pid*
 replay_pid*
 
+org.xtext.example.mydsl.standalone.txt
 org.xtext.example.mydsl.tests.txt
 org.xtext.example.mydsl.txt
