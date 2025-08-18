@@ -3,330 +3,228 @@ grammar org.xtext.example.mydsl.MyDsl with org.eclipse.xtext.common.Terminals
 import "http://www.eclipse.org/emf/2002/Ecore" as ecore
 generate myDsl "http://www.xtext.org/example/mydsl/MyDsl"
 
-// Root model element
+// Root model - contains PrimitiveDataTypes definitions and types
 Model:
-    'model' name=ID '{'
-        (imports+=Import)*
-        (entities+=Entity)*
-        (enums+=Enum)*
-        (typedefs+=TypeDef)*
-    '}';
+    (primitiveDefinitions+=PrimitiveDataTypes)*
+    (packages+=Package)*
+    (types+=FType)*
+;
 
-// Import statements
-Import:
-    'import' importedNamespace=QualifiedNameWithWildcard;
+// Package definition
+Package:
+    'package' name=FQN '{'
+        (types+=FType)*
+    '}'
+;
 
-// Entity definition (C++ class)
-Entity:
-    'entity' name=ID ('extends' superType=[Entity|QualifiedName])? '{'
-        ('namespace' ':' namespace=STRING)?
-        ('description' ':' description=STRING)?
-        
-        // Attributes section
-        ('attributes' '{' 
-            attributes+=Attribute*
-        '}')?
-        
-        // Methods section
-        ('methods' '{' 
-            methods+=Method*
-        '}')?
-        
-        // Constructors section
-        ('constructors' '{' 
-            constructors+=Constructor*
-        '}')?
-        
-        // Options/Features
-        ('options' '{' 
-            options+=Option*
-        '}')?
-        
-        // Inner classes
-        ('inner' '{' 
-            innerClasses+=Entity*
-        '}')?
-        
-        // Static members
-        ('static' '{' 
-            staticMembers+=StaticMember*
-        '}')?
-        
-        // Friend declarations
-        ('friends' '{' 
-            friends+=FriendDeclaration*
-        '}')?
-    '}';
+FQN returns ecore::EString:
+    ID('.' ID)*
+;
 
-// Attribute definition
-Attribute:
-    visibility=Visibility 
-    (isStatic?='static')? 
-    (isConst?='const')? 
-    (isMutable?='mutable')?
-    type=Type 
-    name=ID 
-    ('=' defaultValue=PrimaryExpression)?
-    ('{' 
-        ('get' ':' hasGetter?='true')?
-        ('set' ':' hasSetter?='true')?
-        ('description' ':' description=STRING)?
-    '}')?
-    ';'?;
+// Emitter enumeration
+enum Emitter:
+    UNDEFINED='UNDEFINED' |
+    RTE='rte' |
+    ARA='ara' |
+    FUNDAMENTAL='fundamental'
+;
 
-// Method definition
-Method:
-    visibility=Visibility 
-    (isStatic?='static')? 
-    (isVirtual?='virtual')? 
-    (isInline?='inline')?
-    returnType=Type 
-    name=ID 
-    '(' (parameters+=Parameter (',' parameters+=Parameter)*)? ')'
-    (isConst?='const')?
-    (isNoexcept?='noexcept')?
-    (isOverride?='override')?
-    (isFinal?='final')?
-    (isPureVirtual?='=' '0')?
-    ('{' 
-        ('description' ':' description=STRING)?
-        ('body' ':' body=CodeBlock)?
-    '}')?
-    ';'?;
-
-// Constructor definition
-Constructor:
-    visibility=Visibility
-    (isExplicit?='explicit')?
-    name=ID
-    '(' (parameters+=Parameter (',' parameters+=Parameter)*)? ')'
-    (isNoexcept?='noexcept')?
-    (':' initializerList+=Initializer (',' initializerList+=Initializer)*)?
-    ('{' 
-        ('body' ':' body=CodeBlock)?
-    '}')?
-    ';'?;
-
-// Initializer for constructor
-Initializer:
-    member=ID '(' value=PrimaryExpression ')';
-
-// Parameter definition
-Parameter:
-    (isConst?='const')? 
-    type=Type 
-    (isReference?='&' | isPointer?='*' | isRValueReference?='&&')? 
-    name=ID 
-    ('=' defaultValue=PrimaryExpression)?;
-
-// Static member
-StaticMember:
-    visibility=Visibility 
-    'static' 
-    (isConst?='const')? 
-    type=Type 
-    name=ID 
-    ('=' initialValue=PrimaryExpression)?
-    ';'?;
-
-// Friend declaration
-FriendDeclaration:
-    'friend' (friendClass=[Entity|QualifiedName] | friendFunction=STRING) ';'?;
-
-// Options for code generation
-Option:
-    ThreadingOption | SerializationOption | OperatorsOption | 
-    CopySemanticsOption | MoveSemanticsOption | ComparisonOption | 
-    StreamingOption | CustomOption;
-
-ThreadingOption:
-    'threading' ':' threading=BooleanLiteral;
-
-SerializationOption:
-    'serialization' ':' serialization=BooleanLiteral;
-
-OperatorsOption:
-    'operators' ':' operators=BooleanLiteral;
-
-CopySemanticsOption:
-    'copy_semantics' ':' copySemantics=BooleanLiteral;
-
-MoveSemanticsOption:
-    'move_semantics' ':' moveSemantics=BooleanLiteral;
-
-ComparisonOption:
-    'comparison' ':' comparison=BooleanLiteral;
-
-StreamingOption:
-    'streaming' ':' streaming=BooleanLiteral;
-
-CustomOption:
-    name=ID ':' value=STRING;
-
-// Enum definition
-Enum:
-    'enum' (isClass?='class')? name=ID 
-    (':' underlyingType=Type)? '{'
-        values+=EnumValue (',' values+=EnumValue)* ','?
-    '}';
-
-EnumValue:
-    name=ID ('=' value=INT)?;
-
-// Typedef definition
-TypeDef:
-    'typedef' type=Type alias=ID ';'?
-    | 'using' alias=ID '=' type=Type ';'?;
-
-// Type system - Fixed to avoid left recursion
-Type:
-    BaseType (
-        {ArrayType.elementType=current} '[' size=INT? ']' |
-        {PointerType.pointedType=current} '*' (isConst?='const')? |
-        {ReferenceType.referencedType=current} '&' (isConst?='const')?
-    )*;
-
-BaseType returns Type:
-    PrimitiveType | 
-    CustomType | 
-    TemplateType | 
-    FunctionType |
-    '(' Type ')';
-
-PrimitiveType:
-    name=PrimitiveTypeName;
-
-CustomType:
-    name=[Entity|QualifiedName];
-
-TemplateType:
-    name=ID '<' templateArgs+=Type (',' templateArgs+=Type)* '>';
-
-FunctionType:
-    'function' '<' returnType=Type '(' (paramTypes+=Type (',' paramTypes+=Type)*)? ')' '>';
-
-// Primitive type names
-enum PrimitiveTypeName:
-    VOID='void' |
-    BOOL='bool' |
-    CHAR='char' |
-    WCHAR='wchar_t' |
-    CHAR16='char16_t' |
-    CHAR32='char32_t' |
-    SHORT='short' |
-    INT='int' |
-    LONG='long' |
-    LONGLONG='long long' |
-    FLOAT='float' |
-    DOUBLE='double' |
-    LONGDOUBLE='long double' |
-    SIZE_T='size_t' |
+// Category enumeration
+enum Category:
+    UNDEFINED='UNDEFINED' |
     STRING='string' |
-    AUTO='auto';
+    VALUE='value' |
+    FIXED_LENGTH='fixed-length'
+;
 
-// Visibility modifiers
-enum Visibility:
-    PUBLIC='public' |
-    PRIVATE='private' |
-    PROTECTED='protected';
+// Encoding enumeration
+enum Encoding:
+    UNDEFINED='UNDEFINED' |
+    NONE='native' |
+    BOOLEAN='bool' |
+    IEEE754='iee754' |
+    SIGNED='2C' |
+    LE='little-endian' |
+    BE='big-endian'
+;
 
-// Expression - Fixed to avoid left recursion
+// Basic type identifier - Fixed to avoid ambiguity
+FBasicTypeId:
+    'type' name=ID
+    (
+        ('description' description=STRING) |
+        ('namespace' ns=[Package|FQN]) |
+        ('header' headed=STRING) |
+        ('emitter' emitter=Emitter) |
+        ('category' category=Category) |
+        ('length' len=INT) |
+        ('encoding' encoding=Encoding)
+    )*
+;
+
+// Variant identifier
+VariantId:
+    'variant' name=[Variant|FQN]
+;
+
+// Primitive data types definition
+PrimitiveDataTypes:
+    'define' name=ID '{' dataType+=FBasicTypeId* '}'
+;
+
+// Annotation block - Simplified
+FAnnotationBlock returns FAnnotationBlock:
+    {FAnnotationBlock}
+    '<**' elements+=FAnnotation '**>';
+
+// Single annotation - Using ANY_OTHER as workaround
+FAnnotation returns FAnnotation:
+    rawText=AnnotationText;
+
+// Annotation text - collect any text until **>
+AnnotationText returns ecore::EString:
+    (ID | STRING | INT | WS | '=' | ',' | '.' | '-' | '+' | '(' | ')' | '[' | ']' | '{' | '}' | '/' | ':' | ';' | '!' | '?' | '@' | '#' | '$' | '%' | '^' | '&' | '_' | '|' | '~' | '`' | '\'' | '"' | '<' | '>' | ANY_OTHER)+
+;
+
+// Main type definitions
+FType returns FType:
+    FArrayType |
+    FEnumerationType |
+    FStructType |
+    FTypeDef
+;
+
+// Type references
+ReferredType returns ReferredType:
+    FBasicTypeId | FType
+;
+
+// Type reference with optional modifiers
+FTypeRef returns FTypeRef:
+    predefined=[ReferredType|FQN]
+    // Optional modifiers for basic types only
+    ('{' 
+        ('len' bitLen=INT)? 
+        ('unit' unit=FUnitID)? 
+        ('compuMethod' compuMethod=[CompuMethod])? 
+        ('init' value=SimplePrimaryExpression)? 
+    '}')?
+;
+
+// Array type definition
+FArrayType returns FArrayType:
+    {FArrayType}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'array' name=ID 'of' elementType=FTypeRef;
+
+// Typedef - leads to APPLICATION-PRIMITIVE-DATA-TYPE
+FTypeDef returns FTypeDef:
+    {FTypeDef}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'typedef' name=ID 'is' actualType=FTypeRef
+;
+
+// Struct type definition
+FStructType returns FStructType:
+    {FStructType}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'struct' name=ID
+    ('extends' base=[FStructType|FQN])?
+    '{'
+        (elements+=FField)*
+    '}';
+
+// Enumerator definition
+FEnumerator returns FEnumerator:
+    {FEnumerator}
+    (comment=FAnnotationBlock)?
+    name=ID ('=' value=SimplePrimaryExpression)?
+;
+
+// Enumeration type definition
+FEnumerationType returns FEnumerationType:
+    {FEnumerationType}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'enumeration' name=ID
+    ('extends' base=[FEnumerationType|FQN])?
+    '{'
+        (enumerators+=FEnumerator (','? enumerators+=FEnumerator)*)?
+    '}';
+
+// Enumeration body (as per original DataType.xtext) - for inline/nested use
+FEnumerationTypeBody returns FEnumerationType:
+    {FEnumerationType}
+    ('extends' base=[FEnumerationType|FQN])?
+    '{'
+        (enumerators+=FEnumerator (','? enumerators+=FEnumerator)*)?
+    '}';
+
+// Field definition in struct (as per original DataType.xtext)
+FField:
+    (comment=FAnnotationBlock)?
+    type=FTypeRef (array?='[' size=INT ']')? name=ID;
+
+// Variant definition (for future use)
+Variant:
+    'variant' name=ID '{'
+        // variant content
+    '}'
+;
+
+// CompuMethod (for value computation/transformation)
+CompuMethod:
+    'compumethod' name=ID '{'
+        // computation method details
+    '}'
+;
+
+// Unit identifier
+FUnitID returns ecore::EString:
+    ID | STRING
+;
+
+// Simple primary expression (only literals and identifiers, no complex expressions)
+SimplePrimaryExpression returns Expression:
+    LiteralExpression | IdentifierExpression
+;
+
+// Base Expression type
 Expression:
-    OrExpression;
+    LiteralExpression | IdentifierExpression
+;
 
-OrExpression returns Expression:
-    AndExpression ({BinaryExpression.left=current} operator='||' right=AndExpression)*;
-
-AndExpression returns Expression:
-    EqualityExpression ({BinaryExpression.left=current} operator='&&' right=EqualityExpression)*;
-
-EqualityExpression returns Expression:
-    RelationalExpression ({BinaryExpression.left=current} operator=('==' | '!=') right=RelationalExpression)*;
-
-RelationalExpression returns Expression:
-    AdditiveExpression ({BinaryExpression.left=current} operator=('<' | '>' | '<=' | '>=') right=AdditiveExpression)*;
-
-AdditiveExpression returns Expression:
-    MultiplicativeExpression ({BinaryExpression.left=current} operator=('+' | '-') right=MultiplicativeExpression)*;
-
-MultiplicativeExpression returns Expression:
-    UnaryExpression ({BinaryExpression.left=current} operator=('*' | '/' | '%') right=UnaryExpression)*;
-
-// UnaryExpression - using datatype rule for operator to avoid issues
-UnaryExpression returns Expression:
-    PostfixExpression |
-    {UnaryExpression} operator=UnaryOp operand=UnaryExpression;
-
-// Define unary operators as a datatype rule
-UnaryOp returns ecore::EString:
-    '!' | '-' | '+' | '++' | '--' | '&' | '*';
-
-PostfixExpression returns Expression:
-    PrimaryExpression (
-        {CallExpression.function=current} '(' (arguments+=Expression (',' arguments+=Expression)*)? ')' |
-        {MemberExpression.object=current} '.' member=ID |
-        {ArrayAccessExpression.array=current} '[' index=Expression ']'
-    )*;
-
-PrimaryExpression returns Expression:
-    LiteralExpression |
-    IdentifierExpression |
-    '(' Expression ')';
-
+// Literal expression
 LiteralExpression:
-    value=Literal;
+    value=Literal
+;
 
+// Identifier expression  
+IdentifierExpression:
+    id=ID
+;
+
+// Literals
 Literal:
-    StringLiteral | IntLiteral | FloatLiteral | BooleanLiteral | NullLiteral;
-
-StringLiteral:
-    value=STRING;
+    IntLiteral | StringLiteral | BooleanLiteral | FloatLiteral
+;
 
 IntLiteral:
-    value=INT;
+    value=INT
+;
 
-FloatLiteral:
-    value=FLOAT_NUMBER;
+StringLiteral:
+    value=STRING
+;
 
 BooleanLiteral:
-    value=('true' | 'false');
+    value=('true' | 'false')
+;
 
-NullLiteral:
-    {NullLiteral} ('nullptr' | 'NULL');
+FloatLiteral:
+    value=FloatNumber
+;
 
-IdentifierExpression:
-    id=ID;
-
-// Note: BinaryExpression, UnaryExpression, CallExpression, MemberExpression, and ArrayAccessExpression
-// are created by actions in the expression rules above, so we don't define them separately here
-
-// Code block for method bodies
-CodeBlock:
-    statements+=Statement*;
-
-Statement:
-    {Statement} content=STRING;
-
-// Qualified name with wildcard support
-QualifiedNameWithWildcard:
-    QualifiedName '.*'?;
-
-// Qualified name
-QualifiedName:
-    ID ('.' ID)*;
-
-// Float number terminal
-terminal FLOAT_NUMBER:
+// Use a datatype rule instead of terminal for float
+FloatNumber returns ecore::EString:
     INT '.' INT (('e'|'E') ('+'|'-')? INT)?
-    | INT ('e'|'E') ('+'|'-')? INT;
-
-// Override ID to allow C++ keywords as identifiers in certain contexts
-terminal ID:
-    '^'?('a'..'z'|'A'..'Z'|'_') ('a'..'z'|'A'..'Z'|'_'|'0'..'9')*;
-
-// C++ style comments
-terminal SL_COMMENT:
-    '//' !('\n'|'\r')* ('\r'? '\n')?;
-
-terminal ML_COMMENT:
-    '/*' -> '*/';
+;

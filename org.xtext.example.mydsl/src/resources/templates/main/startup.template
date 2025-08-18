@@ -1,8 +1,0 @@
-
-    std::cout << "Initializing application..." << std::endl;
-    
-    // Set up any global configuration
-    // TODO: Add initialization code here
-    
-    std::cout << "Application initialized successfully." << std::endl << std::endl;
-

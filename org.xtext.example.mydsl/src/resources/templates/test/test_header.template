@@ -1,9 +1,0 @@
-/**
- * @file {{CLASS_NAME}}Test.cpp
- * @brief Unit tests for {{CLASS_NAME}}
- * 
- * This file contains comprehensive unit tests for the {{CLASS_NAME}} class.
- * Uses Google Test framework for testing.
- */
-
-

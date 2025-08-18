@@ -49,9 +49,12 @@ Workflow {
 			generator = {
 				generateXtendStub = true
 			}
-			junitSupport = {
-				junitVersion = "5"
-			}
+			// Define custom test class in 'org.xtext.example.mydsl.tests' so don't need this
+//			junitSupport = {
+//				junitVersion = "5"
+//                // Disable generation of default test classes
+//				generateXtendStub = false
+//			}
 		}
 	}
 }

@@ -1,0 +1,136 @@
+// DataType DSL Example
+// This file demonstrates the syntax from DataType.xtext
+
+// Define primitive types
+define CommonTypes {
+    type uint8
+        namespace common.types
+        category value
+        length 8
+        encoding NONE
+    
+    type uint16
+        namespace common.types
+        category value
+        length 16
+        encoding LE
+    
+    type uint32
+        namespace common.types
+        category value
+        length 32
+        encoding LE
+    
+    type float32
+        namespace common.types
+        category value
+        length 32
+        encoding IEEE754
+    
+    type string
+        namespace common.types
+        category string
+        encoding NONE
+    
+    type timestamp
+        namespace common.types
+        category value
+        length 64
+        encoding NONE
+}
+
+// Package for vehicle data types
+package vehicle.data {
+    
+    <** Vehicle speed information **>
+    public struct Speed {
+        type uint16 value
+        type uint8 unit  // 0=km/h, 1=mph
+        type timestamp measured_at
+    }
+    
+    <** GPS Position **>
+    public struct Position {
+        type float32 latitude
+        type float32 longitude
+        type float32 altitude
+        type uint8 satellites
+        type timestamp fix_time
+    }
+    
+    <** Vehicle status enumeration **>
+    public enumeration VehicleStatus {
+        UNKNOWN = 0,
+        PARKED = 1,
+        IDLE = 2,
+        MOVING = 3,
+        CHARGING = 4
+    }
+    
+    <** Complete vehicle data **>
+    public struct VehicleData extends Position {
+        type string vehicle_id
+        type Speed current_speed
+        type VehicleStatus status
+        type uint8[4] tire_pressure  // Array of 4 tire pressures  
+        type float32 battery_level
+        type timestamp last_update
+    }
+}
+
+// Package for sensor data
+package sensor.data {
+    
+    <** Temperature sensor reading **>
+    public struct Temperature {
+        type float32 value
+        type uint8 unit  // 0=Celsius, 1=Fahrenheit
+        type string sensor_id
+        type timestamp reading_time
+    }
+    
+    <** Sensor type enumeration **>
+    public enumeration SensorType {
+        TEMPERATURE = 0,
+        PRESSURE = 1,
+        HUMIDITY = 2,
+        MOTION = 3,
+        LIGHT = 4
+    }
+    
+    <** Generic sensor data **>
+    public struct SensorReading {
+        type string sensor_id
+        type SensorType sensor_type
+        type float32 value
+        type string unit
+        type timestamp timestamp
+    }
+}
+
+// Top-level types (outside packages)
+
+<** System configuration **>
+public struct SystemConfig {
+    type string system_id
+    type uint32 version
+    type string description
+    type timestamp created_at
+    type timestamp modified_at
+}
+
+<** Error codes **>
+public enumeration ErrorCode {
+    SUCCESS = 0,
+    INVALID_PARAMETER = 1,
+    TIMEOUT = 2,
+    CONNECTION_FAILED = 3,
+    PERMISSION_DENIED = 4,
+    RESOURCE_NOT_FOUND = 5
+}
+
+<** Array type for batch data **>
+public array SensorReadings of sensor.data.SensorReading
+
+<** Type alias for ID **>
+public typedef UniqueId is string { len 36 }  // UUID string

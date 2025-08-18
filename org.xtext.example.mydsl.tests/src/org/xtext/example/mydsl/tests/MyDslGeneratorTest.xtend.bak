@@ -1,0 +1,374 @@
+package org.xtext.example.mydsl.test
+
+import org.xtext.example.mydsl.MyDslStandaloneSetup
+import org.xtext.example.mydsl.generator.MyDslGenerator
+import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl
+import org.eclipse.emf.common.util.URI
+import org.eclipse.xtext.generator.InMemoryFileSystemAccess
+import org.eclipse.xtext.generator.GeneratorContext
+import java.io.File
+import java.io.FileWriter
+import java.io.BufferedWriter
+import org.xtext.example.mydsl.myDsl.FStructType
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.AfterEach
+import static org.junit.jupiter.api.Assertions.*
+import com.google.inject.Injector
+
+/**
+ * Test suite for DataType DSL Generator
+ * Tests the generation of C++ and Protobuf files from DSL models
+ */
+class MyDslGeneratorTest {
+    
+    var Injector injector
+    var ResourceSetImpl resourceSet
+    var MyDslGenerator generator
+    var InMemoryFileSystemAccess fsa
+    var GeneratorContext context
+    
+    @BeforeEach
+    def void setUp() {
+        // Initialize Xtext
+        injector = new MyDslStandaloneSetup().createInjectorAndDoEMFRegistration()
+        resourceSet = injector.getInstance(ResourceSetImpl)
+        generator = injector.getInstance(MyDslGenerator)
+        fsa = new InMemoryFileSystemAccess()
+        context = new GeneratorContext()
+        
+        // Configure generator
+        generator.setGenerationOptions(true, true, true)
+    }
+    
+    @AfterEach
+    def void tearDown() {
+        // Cleanup
+        fsa = null
+        context = null
+        generator = null
+        resourceSet = null
+        injector = null
+    }
+    
+    @Test
+    def void testBasicStructGeneration() {
+        val model = '''
+            define BasicTypes {
+                type uint32
+                    category value
+                    length 32
+                    encoding LE
+            }
+            
+            public struct Person {
+                type uint32 id
+                type string name
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        // Check that C++ header was generated
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/Person.h"),
+            "Person.h should be generated")
+        
+        val personHeader = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/Person.h")
+        assertNotNull(personHeader, "Person.h content should not be null")
+        
+        // Check content contains struct definition
+        val content = personHeader.toString
+        assertTrue(content.contains("struct Person"), "Should contain struct Person")
+        assertTrue(content.contains("uint32_t id"), "Should contain uint32_t id")
+        assertTrue(content.contains("std::string name"), "Should contain std::string name")
+    }
+    
+    @Test
+    def void testEnumerationGeneration() {
+        val model = '''
+            public enumeration Status {
+                ACTIVE = 0,
+                INACTIVE = 1,
+                PENDING = 2
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        // Check that C++ header was generated
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/Status.h"),
+            "Status.h should be generated")
+        
+        val statusHeader = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/Status.h")
+        val content = statusHeader.toString
+        
+        // Check enum content
+        assertTrue(content.contains("enum class Status"), "Should contain enum class Status")
+        assertTrue(content.contains("ACTIVE = 0"), "Should contain ACTIVE = 0")
+        assertTrue(content.contains("INACTIVE = 1"), "Should contain INACTIVE = 1")
+        assertTrue(content.contains("PENDING = 2"), "Should contain PENDING = 2")
+    }
+    
+    @Test
+    def void testArrayTypeGeneration() {
+        val model = '''
+            public struct Point {
+                type float32 x
+                type float32 y
+            }
+            
+            public array PointArray of Point
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        // Check array type generation
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/PointArray.h"),
+            "PointArray.h should be generated")
+        
+        val arrayHeader = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/PointArray.h")
+        val content = arrayHeader.toString
+        
+        assertTrue(content.contains("using PointArray"), "Should contain using PointArray")
+        assertTrue(content.contains("std::vector"), "Should contain std::vector")
+    }
+    
+    @Test
+    def void testTypedefGeneration() {
+        val model = '''
+            public typedef UUID is string { len 36 }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/UUID.h"),
+            "UUID.h should be generated")
+        
+        val typedefHeader = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/UUID.h")
+        val content = typedefHeader.toString
+        
+        assertTrue(content.contains("using UUID"), "Should contain using UUID")
+        assertTrue(content.contains("std::string"), "Should contain std::string")
+    }
+    
+    @Test
+    def void testPackageGeneration() {
+        val model = '''
+            package com.example {
+                public struct Data {
+                    type uint32 value
+                }
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        // Check that file is in package directory
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/com.example/Data.h"),
+            "Data.h should be in package directory")
+        
+        val dataHeader = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/com.example/Data.h")
+        val content = dataHeader.toString
+        
+        // Check namespace
+        assertTrue(content.contains("namespace com::example"), "Should contain namespace")
+    }
+    
+    @Test
+    def void testStructInheritance() {
+        val model = '''
+            public struct Base {
+                type uint32 id
+            }
+            
+            public struct Derived extends Base {
+                type string name
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/Derived.h"),
+            "Derived.h should be generated")
+        
+        val derivedHeader = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/Derived.h")
+        val content = derivedHeader.toString
+        
+        assertTrue(content.contains(": public Base"), "Should extend Base")
+    }
+    
+    @Test
+    def void testFieldArrays() {
+        val model = '''
+            public struct Data {
+                type uint8[10] buffer
+                type float32[3] coordinates
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        val dataHeader = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/Data.h")
+        val content = dataHeader.toString
+        
+        assertTrue(content.contains("buffer[10]"), "Should contain buffer array")
+        assertTrue(content.contains("coordinates[3]"), "Should contain coordinates array")
+    }
+    
+    @Test
+    def void testProtobufGeneration() {
+        val model = '''
+            public struct Message {
+                type uint32 id
+                type string text
+            }
+            
+            public enumeration Type {
+                REQUEST = 0,
+                RESPONSE = 1
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        // Check proto file generation
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/proto/datatypes.proto"),
+            "datatypes.proto should be generated")
+        
+        val protoFile = fsa.getTextFile("DEFAULT_OUTPUTgenerated/proto/datatypes.proto")
+        val content = protoFile.toString
+        
+        assertTrue(content.contains("syntax = \"proto3\""), "Should contain syntax proto3")
+        assertTrue(content.contains("message Message"), "Should contain message Message")
+        assertTrue(content.contains("enum Type"), "Should contain enum Type")
+    }
+    
+    @Test
+    def void testCMakeGeneration() {
+        val model = '''
+            public struct Test {
+                type uint32 value
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/CMakeLists.txt"),
+            "CMakeLists.txt should be generated")
+        
+        val cmakeFile = fsa.getTextFile("DEFAULT_OUTPUTgenerated/CMakeLists.txt")
+        val content = cmakeFile.toString
+        
+        assertTrue(content.contains("cmake_minimum_required"), 
+            "Should contain cmake_minimum_required")
+        assertTrue(content.contains("project"), "Should contain project")
+    }
+    
+    @Test
+    def void testAnnotationBlocks() {
+        val model = '''
+            <** This is a test struct **>
+            public struct Annotated {
+                <** This is a field **>
+                type uint32 field
+            }
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        val header = fsa.getTextFile("DEFAULT_OUTPUTgenerated/include/Annotated.h")
+        val content = header.toString
+        
+        // Check that comments are included
+        assertTrue(content.contains("This is a test struct"), 
+            "Should contain struct comment")
+        assertTrue(content.contains("This is a field"),
+            "Should contain field comment")
+    }
+    
+    @Test
+    def void testComplexModel() {
+        val model = '''
+            define Types {
+                type uint32
+                    category value
+                    length 32
+                
+                type string
+                    category string
+            }
+            
+            package com.test {
+                public struct Base {
+                    type uint32 id
+                }
+                
+                public struct Extended extends Base {
+                    type string name
+                    type uint32[5] values
+                }
+                
+                public enumeration Status {
+                    OK = 0,
+                    ERROR = 1
+                }
+            }
+            
+            public array DataArray of com.test.Extended
+            public typedef Identifier is uint32
+        '''
+        
+        val resource = loadModel(model)
+        generator.doGenerate(resource, fsa, context)
+        
+        // Check multiple files were generated
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/com.test/Base.h"),
+            "Should generate Base.h")
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/com.test/Extended.h"),
+            "Should generate Extended.h")
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/com.test/Status.h"),
+            "Should generate Status.h")
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/DataArray.h"),
+            "Should generate DataArray.h")
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/Identifier.h"),
+            "Should generate Identifier.h")
+        assertTrue(fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/Types.h"),
+            "Should generate Types.h")
+    }
+    
+    /**
+     * Helper method to load a model from string
+     */
+    def private loadModel(String modelText) {
+        val file = File.createTempFile("test", ".mydsl")
+        file.deleteOnExit()
+        
+        val writer = new BufferedWriter(new FileWriter(file))
+        writer.write(modelText)
+        writer.close()
+        
+        val fileURI = URI.createFileURI(file.absolutePath)
+        return resourceSet.getResource(fileURI, true)
+    }
+    
+    /**
+     * Helper to get text file content
+     */
+    def private getTextFile(InMemoryFileSystemAccess fsa, String path) {
+        val content = fsa.allFiles.get(path)
+        if (content instanceof CharSequence) {
+            return content
+        }
+        return null
+    }
+}
