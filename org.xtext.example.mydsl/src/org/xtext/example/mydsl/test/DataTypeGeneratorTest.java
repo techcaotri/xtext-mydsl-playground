@@ -3,6 +3,7 @@ package org.xtext.example.mydsl.test;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
+import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.xtext.generator.GeneratorContext;
 import org.eclipse.xtext.generator.IFileSystemAccess2;
 import org.eclipse.xtext.generator.IGeneratorContext;
@@ -57,6 +58,9 @@ public class DataTypeGeneratorTest {
             
             URI fileURI = URI.createFileURI(file.getAbsolutePath());
             Resource resource = resourceSet.getResource(fileURI, true);
+            
+            // Force resolution of cross-references
+            EcoreUtil.resolveAll(resource);
             
             // Check for errors
             if (!resource.getErrors().isEmpty()) {

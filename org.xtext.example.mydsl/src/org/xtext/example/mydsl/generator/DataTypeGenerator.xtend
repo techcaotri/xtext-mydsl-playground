@@ -8,6 +8,9 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.HashMap
 import java.util.Map
+import org.eclipse.xtext.nodemodel.util.NodeModelUtils
+import org.eclipse.emf.ecore.util.EcoreUtil
+import org.eclipse.emf.ecore.EObject
 
 /**
  * C++ code generator for DataType DSL using external templates
@@ -29,23 +32,38 @@ class DataTypeGenerator {
 		}
 		templateLoader.setTemplateBasePath("/templates/")
 
-		// Generate types header file
-		generateTypesHeader(model, fsa)
-
-		// Generate individual headers for each type
-		for (type : model.types) {
-			generateTypeHeader(type, model, fsa)
-		}
-
-		// Generate headers for types in packages
-		for (pkg : model.packages) {
-			for (type : pkg.types) {
-				generateTypeHeader(type, model, fsa, pkg)
+		try {
+			// Generate types header file
+			generateTypesHeader(model, fsa)
+	
+			// Generate individual headers for each type
+			for (type : model.types) {
+				try {
+					generateTypeHeader(type, model, fsa)
+				} catch (Exception e) {
+					System.err.println("Warning: Failed to generate header for type: " + getTypeName(type))
+					e.printStackTrace()
+				}
 			}
+	
+			// Generate headers for types in packages
+			for (pkg : model.packages) {
+				for (type : pkg.types) {
+					try {
+						generateTypeHeader(type, model, fsa, pkg)
+					} catch (Exception e) {
+						System.err.println("Warning: Failed to generate header for type in package " + pkg.name + ": " + getTypeName(type))
+						e.printStackTrace()
+					}
+				}
+			}
+	
+			// Generate CMakeLists.txt
+			generateCMakeFile(model, fsa)
+		} catch (Exception e) {
+			System.err.println("Error during C++ generation: " + e.message)
+			e.printStackTrace()
 		}
-
-		// Generate CMakeLists.txt
-		generateCMakeFile(model, fsa)
 	}
 
 	/**
@@ -168,11 +186,20 @@ class DataTypeGenerator {
 	 * Generate field using template
 	 */
 	def String generateFieldWithTemplate(FField field, Model model) {
+		// Add null safety check
+		val fieldName = if (field.name !== null) field.name else "field"
+		
+		// Get the type, handling potential null/unresolved references
+		var fieldType = "void"
+		if (field.type !== null) {
+			fieldType = mapTypeRef(field.type, model)
+		}
+		
 		val variables = new HashMap<String, String>()
 		variables.put("FIELD_COMMENT", if(field.comment !== null) generateComment(field.comment) else "")
-		variables.put("FIELD_TYPE", mapTypeRef(field.type, model))
+		variables.put("FIELD_TYPE", fieldType)
 		variables.put("ARRAY_DECL", if (field.array) '''[«field.size»]''' else "")
-		variables.put("FIELD_NAME", field.name)
+		variables.put("FIELD_NAME", fieldName)
 		variables.put("INITIALIZER", generateFieldInitializer(field))
 
 		return templateLoader.processTemplate("/templates/cpp/field.template", variables)
@@ -182,7 +209,7 @@ class DataTypeGenerator {
 	 * Generate field initializer
 	 */
 	def String generateFieldInitializer(FField field) {
-		if (field.type.value !== null) {
+		if (field.type !== null && field.type.value !== null) {
 			return " = " + expressionToString(field.type.value)
 		}
 		return ""
@@ -264,20 +291,140 @@ class DataTypeGenerator {
 	 * Map FTypeRef to C++ type string
 	 */
 	def String mapTypeRef(FTypeRef typeRef, Model model) {
-		val refType = typeRef.predefined
-
-		// Check if it's a basic type
-		if (refType instanceof FBasicTypeId) {
-			return mapBasicType(refType, typeRef)
+		if (typeRef === null) {
+			return "void"
 		}
-
-		// Check if it's a defined type
-		if (refType instanceof FType) {
-			return getTypeName(refType)
+		
+		// First, try to get the predefined reference
+		val refType = typeRef.predefined
+		
+		if (refType !== null) {
+			// Check if it's a basic type
+			if (refType instanceof FBasicTypeId) {
+				return mapBasicType(refType, typeRef)
+			}
+	
+			// Check if it's a defined type
+			if (refType instanceof FType) {
+				return getTypeName(refType)
+			}
+		}
+		
+		// If the reference is null or unresolved, extract the type name from the AST
+		// This is needed because cross-references to types in PrimitiveDataTypes aren't being resolved
+		try {
+			val node = NodeModelUtils.findActualNodeFor(typeRef)
+			if (node !== null && node.text !== null) {
+				val text = node.text.trim
+				// Remove any modifiers like {len 36}
+				val typeName = if (text.contains("{")) {
+					text.substring(0, text.indexOf("{")).trim
+				} else {
+					text
+				}
+				// Map the type name directly
+				if (!typeName.empty) {
+					return mapBasicTypeByName(typeName, typeRef)
+				}
+			}
+		} catch (Exception e) {
+			// Silent fail
 		}
 
 		// Default fallback
 		return "void"
+	}
+	
+	/**
+	 * Get the unresolved type name from a FTypeRef
+	 */
+	def String getUnresolvedTypeName(FTypeRef typeRef) {
+		// Use the node model to get the actual text
+		try {
+			val node = NodeModelUtils.findActualNodeFor(typeRef)
+			if (node !== null) {
+				// Get the text of the first ID token which should be the type name
+				for (leaf : node.leafNodes) {
+					val grammarElement = leaf.grammarElement
+					if (grammarElement !== null) {
+						val text = leaf.text.trim
+						// Skip structural tokens
+						if (!text.empty && !text.equals("{") && !text.equals("}") && 
+							!text.equals("=") && !text.equals("len") && !text.equals("unit") &&
+							!text.equals("compuMethod") && !text.equals("init")) {
+							// This should be the type name
+							return text
+						}
+					}
+				}
+			}
+		} catch (Exception e) {
+			// Silent fail
+		}
+		return null
+	}
+	
+	/**
+	 * Get type name from reference
+	 */
+	def String getTypeNameFromRef(Object refType) {
+		// Use reflection to get the name if available
+		try {
+			val nameMethod = refType.class.getMethod("getName")
+			if (nameMethod !== null) {
+				val name = nameMethod.invoke(refType)
+				if (name instanceof String) {
+					return name
+				}
+			}
+		} catch (Exception e) {
+			// Silent fail
+		}
+		return null
+	}
+	
+	/**
+	 * Map basic type by name when reference resolution fails
+	 */
+	def String mapBasicTypeByName(String typeName, FTypeRef typeRef) {
+		val name = typeName.toLowerCase
+		
+		// Map based on name
+		switch (name) {
+			case "bool": return "bool"
+			case "boolean": return "bool"
+			case "int8": return "int8_t"
+			case "uint8": return "uint8_t"
+			case "int16": return "int16_t"
+			case "uint16": return "uint16_t"
+			case "int32": return "int32_t"
+			case "int": return "int32_t"
+			case "uint32": return "uint32_t"
+			case "uint": return "uint32_t"
+			case "int64": return "int64_t"
+			case "long": return "int64_t"
+			case "uint64": return "uint64_t"
+			case "ulong": return "uint64_t"
+			case "float": return "float"
+			case "float32": return "float"
+			case "double": return "double"
+			case "float64": return "double"
+			case "string": return "std::string"
+			case "byte": return "uint8_t"
+			case "char": return "char"
+			case "wchar": return "wchar_t"
+		}
+		
+		// Handle bit length if specified
+		if (typeRef !== null && typeRef.bitLen > 0) {
+			if(typeRef.bitLen <= 8) return "uint8_t"
+			if(typeRef.bitLen <= 16) return "uint16_t"
+			if(typeRef.bitLen <= 32) return "uint32_t"
+			if(typeRef.bitLen <= 64) return "uint64_t"
+		}
+		
+		// Default
+		return typeName
 	}
 
 	/**

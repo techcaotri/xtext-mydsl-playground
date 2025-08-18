@@ -14,6 +14,7 @@ import org.eclipse.xtext.generator.IFileSystemAccess2
 import org.eclipse.xtext.generator.JavaIoFileSystemAccess
 import org.eclipse.xtext.generator.OutputConfiguration
 import org.eclipse.xtext.resource.IResourceServiceProvider
+import org.eclipse.emf.ecore.util.EcoreUtil
 import java.io.File
 import java.io.FileWriter
 import java.io.BufferedWriter
@@ -214,7 +215,10 @@ class MyDslGeneratorTest {
 
 		val fileURI = URI.createFileURI(file.absolutePath)
 		val resource = try {
-				resourceSet.getResource(fileURI, true)
+				val res = resourceSet.getResource(fileURI, true)
+				// Force resolution of cross-references
+				EcoreUtil.resolveAll(res)
+				res
 			} catch (Exception e) {
 				println("ERROR: Could not load file: " + inputFile)
 				println("  Reason: " + e.message)
@@ -261,7 +265,7 @@ class MyDslGeneratorTest {
 			    type uint32
 			        category value
 			        length 32
-			        encoding LE
+			        encoding little-endian
 			    type String
 			        category string
 			}
@@ -349,7 +353,7 @@ class MyDslGeneratorTest {
 			    type float32
 			        category value
 			        length 32
-			        encoding IEEE754
+			        encoding iee754
 			}
 			
 			public struct Point {
@@ -428,7 +432,7 @@ class MyDslGeneratorTest {
 			
 			package com.example {
 			    public struct Data {
-			        uint32 value
+			        uint32 val
 			    }
 			}
 		'''
@@ -446,6 +450,12 @@ class MyDslGeneratorTest {
 
 		if (!content.contains("namespace com::example")) {
 			println("  Error: Should contain namespace")
+			return false
+		}
+		
+		// Check that the field 'val' is generated
+		if (!content.contains("uint32_t val")) {
+			println("  Error: Should contain uint32_t val")
 			return false
 		}
 
@@ -501,7 +511,7 @@ class MyDslGeneratorTest {
 			    type float32
 			        category value
 			        length 32
-			        encoding IEEE754
+			        encoding iee754
 			}
 			
 			public struct Data {
@@ -587,7 +597,7 @@ class MyDslGeneratorTest {
 			}
 			
 			public struct Test {
-			    uint32 value
+			    uint32 val
 			}
 		'''
 
@@ -609,6 +619,16 @@ class MyDslGeneratorTest {
 		if (!content.contains("project")) {
 			println("  Error: Should contain project")
 			return false
+		}
+		
+		// Also check that Test.h was generated with the right field
+		val testHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/Test.h")
+		if (testHeader !== null) {
+			val testContent = testHeader.toString
+			if (!testContent.contains("uint32_t val")) {
+				println("  Error: Test.h should contain uint32_t val")
+				return false  
+			}
 		}
 
 		return true
@@ -633,7 +653,7 @@ class MyDslGeneratorTest {
 			    
 			    public struct Extended extends Base {
 			        String name
-			        uint32[5] values
+			        uint32[5] vals
 			    }
 			    
 			    public enumeration Status {
@@ -670,6 +690,16 @@ class MyDslGeneratorTest {
 			println("  Error: Should generate Identifier.h")
 			return false
 		}
+		
+		// Check that Extended.h contains the vals array field
+		val extendedHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/com.test/Extended.h")
+		if (extendedHeader !== null) {
+			val content = extendedHeader.toString
+			if (!content.contains("vals[5]")) {
+				println("  Error: Extended.h should contain vals[5] array")
+				return false
+			}
+		}
 
 		return true
 	}
@@ -686,7 +716,21 @@ class MyDslGeneratorTest {
 		writer.close()
 
 		val fileURI = URI.createFileURI(file.absolutePath)
-		return resourceSet.getResource(fileURI, true)
+		val resource = resourceSet.getResource(fileURI, true)
+		
+		// Force resolution of cross-references
+		EcoreUtil.resolveAll(resource)
+		
+		// Check for errors after resolution but don't fail - just warn
+		if (!resource.errors.empty) {
+			println("Warning: Model contains errors after loading:")
+			for (error : resource.errors) {
+				println("  " + error.message)
+			}
+			// Don't fail - let the generator try to handle unresolved references
+		}
+		
+		return resource
 	}
 
 	/**

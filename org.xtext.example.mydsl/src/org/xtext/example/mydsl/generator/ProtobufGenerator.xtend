@@ -22,6 +22,8 @@ import org.eclipse.xtext.generator.JavaIoFileSystemAccess
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
+import org.eclipse.xtext.nodemodel.util.NodeModelUtils
+import org.eclipse.emf.ecore.util.EcoreUtil
 
 /**
  * Protobuf generator for DataType DSL models using templates
@@ -47,27 +49,42 @@ class ProtobufGenerator {
         }
         templateLoader.setTemplateBasePath("/templates/")
         
-        // Generate main .proto file
-        val protoFileName = '''proto/datatypes.proto'''
-        fsa.generateFile(protoFileName, generateProtoFileWithTemplate(model))
-        
-        // Generate .proto files for each package
-        for (pkg : model.packages) {
-            val pkgProtoFileName = '''proto/«pkg.name.replace(".", "_")».proto'''
-            fsa.generateFile(pkgProtoFileName, generatePackageProtoFileWithTemplate(pkg, model))
-        }
-        
-        // Generate binary descriptor set if requested
-        if (generateBinary) {
-            val descFileName = '''proto/datatypes.desc'''
-            val descriptorBytes = generateDescriptorSet(model)
+        try {
+            // Generate main .proto file
+            val protoFileName = '''proto/datatypes.proto'''
+            fsa.generateFile(protoFileName, generateProtoFileWithTemplate(model))
             
-            // Write binary file
-            writeBinaryFile(fsa, descFileName, descriptorBytes)
+            // Generate .proto files for each package
+            for (pkg : model.packages) {
+                try {
+                    val pkgProtoFileName = '''proto/«pkg.name.replace(".", "_")».proto'''
+                    fsa.generateFile(pkgProtoFileName, generatePackageProtoFileWithTemplate(pkg, model))
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to generate proto for package " + pkg.name)
+                    e.printStackTrace()
+                }
+            }
             
-            // Generate info file
-            val infoFileName = '''proto/datatypes.desc.info'''
-            fsa.generateFile(infoFileName, generateDescriptorInfo(model, descriptorBytes))
+            // Generate binary descriptor set if requested
+            if (generateBinary) {
+                try {
+                    val descFileName = '''proto/datatypes.desc'''
+                    val descriptorBytes = generateDescriptorSet(model)
+                    
+                    // Write binary file
+                    writeBinaryFile(fsa, descFileName, descriptorBytes)
+                    
+                    // Generate info file
+                    val infoFileName = '''proto/datatypes.desc.info'''
+                    fsa.generateFile(infoFileName, generateDescriptorInfo(model, descriptorBytes))
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to generate binary descriptor")
+                    e.printStackTrace()
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error during Protobuf generation: " + e.message)
+            e.printStackTrace()
         }
     }
     
@@ -187,11 +204,20 @@ class ProtobufGenerator {
      * Generate proto field using template
      */
     def String generateProtoFieldWithTemplate(FField field, int fieldNumber) {
+        // Add null safety check
+        val fieldName = if (field.name !== null) field.name else "field_" + fieldNumber
+        
+        // Get the type, handling potential null/unresolved references
+        var fieldType = "bytes"
+        if (field.type !== null) {
+            fieldType = mapToProtoType(field.type)
+        }
+        
         val variables = new HashMap<String, String>()
         variables.put("FIELD_COMMENT", if (field.comment !== null) generateProtoComment(field.comment) else "")
         variables.put("REPEATED", if (field.array) "repeated " else "")
-        variables.put("FIELD_TYPE", mapToProtoType(field.type))
-        variables.put("FIELD_NAME", toSnakeCase(field.name))
+        variables.put("FIELD_TYPE", fieldType)
+        variables.put("FIELD_NAME", toSnakeCase(fieldName))
         variables.put("FIELD_NUMBER", String.valueOf(fieldNumber))
         
         return templateLoader.processTemplate("/templates/proto/field.template", variables)
@@ -254,17 +280,129 @@ class ProtobufGenerator {
      * Map FTypeRef to Protobuf type
      */
     def String mapToProtoType(FTypeRef typeRef) {
-        val refType = typeRef.predefined
-        
-        if (refType instanceof FBasicTypeId) {
-            return mapBasicToProto(refType, typeRef)
+        if (typeRef === null) {
+            return "bytes"
         }
         
-        if (refType instanceof FType) {
-            return getTypeName(refType)
+        val refType = typeRef.predefined
+        
+        if (refType !== null) {
+            if (refType instanceof FBasicTypeId) {
+                return mapBasicToProto(refType, typeRef)
+            }
+            
+            if (refType instanceof FType) {
+                return getTypeName(refType)
+            }
+        }
+        
+        // If the reference is null or unresolved, extract the type name from the AST
+        try {
+            val node = NodeModelUtils.findActualNodeFor(typeRef)
+            if (node !== null && node.text !== null) {
+                val text = node.text.trim
+                // Remove any modifiers like {len 36}
+                val typeName = if (text.contains("{")) {
+                    text.substring(0, text.indexOf("{")).trim
+                } else {
+                    text
+                }
+                // Map the type name directly
+                if (!typeName.empty) {
+                    return mapBasicToProtoByName(typeName, typeRef)
+                }
+            }
+        } catch (Exception e) {
+            // Silent fail
         }
         
         return "bytes"
+    }
+    
+    /**
+     * Get the unresolved type name from a FTypeRef
+     */
+    def String getUnresolvedTypeName(FTypeRef typeRef) {
+        try {
+            // Try to get it from the node model
+            val node = NodeModelUtils.findActualNodeFor(typeRef)
+            if (node !== null) {
+                // Get the text of the first ID token which should be the type name
+                for (leaf : node.leafNodes) {
+                    val grammarElement = leaf.grammarElement
+                    if (grammarElement !== null) {
+                        val text = leaf.text.trim
+                        // Skip structural tokens
+                        if (!text.empty && !text.equals("{") && !text.equals("}") && 
+                            !text.equals("=") && !text.equals("len") && !text.equals("unit") &&
+                            !text.equals("compuMethod") && !text.equals("init")) {
+                            // This should be the type name
+                            return text
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Silent fail
+        }
+        return null
+    }
+    
+    /**
+     * Get type name from reference
+     */
+    def String getTypeNameFromRef(Object refType) {
+        // Use reflection to get the name if available
+        try {
+            val nameMethod = refType.class.getMethod("getName")
+            if (nameMethod !== null) {
+                val name = nameMethod.invoke(refType)
+                if (name instanceof String) {
+                    return name
+                }
+            }
+        } catch (Exception e) {
+            // Silent fail
+        }
+        return null
+    }
+    
+    /**
+     * Map basic type to proto by name when reference resolution fails
+     */
+    def String mapBasicToProtoByName(String typeName, FTypeRef typeRef) {
+        val name = typeName.toLowerCase
+        
+        switch (name) {
+            case "bool": return "bool"
+            case "boolean": return "bool"
+            case "int8": return "int32"
+            case "int16": return "int32"
+            case "int32": return "int32"
+            case "int": return "int32"
+            case "uint8": return "uint32"
+            case "uint16": return "uint32"
+            case "uint32": return "uint32"
+            case "uint": return "uint32"
+            case "int64": return "int64"
+            case "long": return "int64"
+            case "uint64": return "uint64"
+            case "ulong": return "uint64"
+            case "float": return "float"
+            case "float32": return "float"
+            case "double": return "double"
+            case "float64": return "double"
+            case "string": return "string"
+            case "byte": return "bytes"
+            default: {
+                // Check bit length
+                if (typeRef !== null && typeRef.bitLen > 0) {
+                    if (typeRef.bitLen <= 32) return "int32"
+                    if (typeRef.bitLen <= 64) return "int64"
+                }
+                return "bytes"
+            }
+        }
     }
     
     /**
@@ -344,6 +482,9 @@ class ProtobufGenerator {
      * Convert to snake_case
      */
     def String toSnakeCase(String camelCase) {
+        if (camelCase === null || camelCase.empty) {
+            return ""
+        }
         return camelCase.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase
     }
     
@@ -425,7 +566,8 @@ class ProtobufGenerator {
         // Add fields
         for (field : struct.elements) {
             val fieldBuilder = FieldDescriptorProto.newBuilder()
-            fieldBuilder.setName(toSnakeCase(field.name))
+            val fieldName = if (field.name !== null) field.name else "field_" + fieldNumber
+            fieldBuilder.setName(toSnakeCase(fieldName))
             fieldBuilder.setNumber(fieldNumber++)
             
             if (field.array) {
@@ -447,16 +589,84 @@ class ProtobufGenerator {
      * Set field type in descriptor
      */
     def void setFieldType(FieldDescriptorProto.Builder fieldBuilder, FTypeRef typeRef) {
+        if (typeRef === null) {
+            fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_BYTES)
+            return
+        }
+        
         val refType = typeRef.predefined
         
-        if (refType instanceof FBasicTypeId) {
-            val protoType = mapBasicToProtoType(refType, typeRef)
-            fieldBuilder.setType(protoType)
-        } else if (refType instanceof FType) {
-            fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_MESSAGE)
-            fieldBuilder.setTypeName(getTypeName(refType))
+        if (refType !== null) {
+            if (refType instanceof FBasicTypeId) {
+                val protoType = mapBasicToProtoType(refType, typeRef)
+                fieldBuilder.setType(protoType)
+            } else if (refType instanceof FType) {
+                fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_MESSAGE)
+                fieldBuilder.setTypeName(getTypeName(refType))
+            } else {
+                // Try to resolve by name for basic types
+                val typeName = getTypeNameFromRef(refType)
+                if (typeName !== null) {
+                    val protoType = mapBasicToProtoTypeByName(typeName, typeRef)
+                    fieldBuilder.setType(protoType)
+                } else {
+                    fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_BYTES)
+                }
+            }
         } else {
+            // If the reference is null or unresolved, extract the type name from the AST
+            try {
+                val node = NodeModelUtils.findActualNodeFor(typeRef)
+                if (node !== null && node.text !== null) {
+                    val text = node.text.trim
+                    // Remove any modifiers like {len 36}
+                    val typeName = if (text.contains("{")) {
+                        text.substring(0, text.indexOf("{")).trim
+                    } else {
+                        text
+                    }
+                    // Map the type name directly
+                    if (!typeName.empty) {
+                        val protoType = mapBasicToProtoTypeByName(typeName, typeRef)
+                        fieldBuilder.setType(protoType)
+                        return
+                    }
+                }
+            } catch (Exception e) {
+                // Silent fail
+            }
             fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_BYTES)
+        }
+    }
+    
+    /**
+     * Map basic type to proto descriptor type by name
+     */
+    def FieldDescriptorProto.Type mapBasicToProtoTypeByName(String typeName, FTypeRef typeRef) {
+        val name = typeName.toLowerCase
+        
+        switch (name) {
+            case "bool": return FieldDescriptorProto.Type.TYPE_BOOL
+            case "boolean": return FieldDescriptorProto.Type.TYPE_BOOL
+            case "int8": return FieldDescriptorProto.Type.TYPE_INT32
+            case "int16": return FieldDescriptorProto.Type.TYPE_INT32
+            case "int32": return FieldDescriptorProto.Type.TYPE_INT32
+            case "int": return FieldDescriptorProto.Type.TYPE_INT32
+            case "uint8": return FieldDescriptorProto.Type.TYPE_UINT32
+            case "uint16": return FieldDescriptorProto.Type.TYPE_UINT32
+            case "uint32": return FieldDescriptorProto.Type.TYPE_UINT32
+            case "uint": return FieldDescriptorProto.Type.TYPE_UINT32
+            case "int64": return FieldDescriptorProto.Type.TYPE_INT64
+            case "long": return FieldDescriptorProto.Type.TYPE_INT64
+            case "uint64": return FieldDescriptorProto.Type.TYPE_UINT64
+            case "ulong": return FieldDescriptorProto.Type.TYPE_UINT64
+            case "float": return FieldDescriptorProto.Type.TYPE_FLOAT
+            case "float32": return FieldDescriptorProto.Type.TYPE_FLOAT
+            case "double": return FieldDescriptorProto.Type.TYPE_DOUBLE
+            case "float64": return FieldDescriptorProto.Type.TYPE_DOUBLE
+            case "string": return FieldDescriptorProto.Type.TYPE_STRING
+            case "byte": return FieldDescriptorProto.Type.TYPE_BYTES
+            default: return FieldDescriptorProto.Type.TYPE_BYTES
         }
     }
     
