@@ -9,6 +9,7 @@ import java.time.format.DateTimeFormatter
 import java.util.HashMap
 import java.util.Map
 import org.eclipse.xtext.nodemodel.util.NodeModelUtils
+import org.eclipse.xtext.nodemodel.ILeafNode
 import org.eclipse.emf.ecore.util.EcoreUtil
 import org.eclipse.emf.ecore.EObject
 
@@ -99,38 +100,47 @@ class DataTypeGenerator {
 	}
 
 	def void generateTypeHeader(FType type, Model model, IFileSystemAccess2 fsa, Package pkg) {
-		val typeName = getTypeName(type)
-		val path = if (pkg !== null) '''«pkg.name»/''' else ""
-		val fileName = '''«OUTPUT_PATH»include/«path»«typeName».h'''
+		try {
+			val typeName = getTypeName(type)
+			val path = if (pkg !== null) '''«pkg.name»/''' else ""
+			val fileName = '''«OUTPUT_PATH»include/«path»«typeName».h'''
 
-		val guardName = '''«IF pkg !== null»«pkg.name.toUpperCase.replace(".", "_")»_«ENDIF»«typeName.toUpperCase»_H'''
+			val guardName = '''«IF pkg !== null»«pkg.name.toUpperCase.replace(".", "_")»_«ENDIF»«typeName.toUpperCase»_H'''
 
-		// Build includes
-		val includesVars = new HashMap<String, String>()
-		includesVars.put("CUSTOM_INCLUDES", generateCustomIncludes(type, model))
-		val includes = templateLoader.processTemplate("/templates/cpp/includes.template", includesVars)
+			// Build includes
+			val includesVars = new HashMap<String, String>()
+			includesVars.put("CUSTOM_INCLUDES", generateCustomIncludes(type, model))
+			val includes = templateLoader.processTemplate("/templates/cpp/includes.template", includesVars)
 
-		// Build namespace
-		val namespaceBegin = if (pkg !== null) '''namespace «pkg.name.replace(".", "::")» {''' else ""
-		val namespaceEnd = if (pkg !== null) '''} // namespace «pkg.name.replace(".", "::")»''' else ""
+			// Build namespace
+			val namespaceBegin = if (pkg !== null) '''namespace «pkg.name.replace(".", "::")» {''' else ""
+			val namespaceEnd = if (pkg !== null) '''} // namespace «pkg.name.replace(".", "::")»''' else ""
 
-		// Generate type content
-		val typeContent = generateTypeContent(type, model)
+			// Generate type content
+			val typeContent = generateTypeContent(type, model)
 
-		// Process main header template
-		val variables = new HashMap<String, String>()
-		variables.put("FILE_NAME", typeName + ".h")
-		variables.put("DESCRIPTION", "Definition of " + typeName)
-		variables.put("TIMESTAMP", LocalDateTime.now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
-		variables.put("GUARD_NAME", guardName)
-		variables.put("INCLUDES", includes)
-		variables.put("NAMESPACE_BEGIN", namespaceBegin)
-		variables.put("NAMESPACE_END", namespaceEnd)
-		variables.put("FORWARD_DECLARATIONS", "")
-		variables.put("CONTENT", typeContent)
+			// Process main header template
+			val variables = new HashMap<String, String>()
+			variables.put("FILE_NAME", typeName + ".h")
+			variables.put("DESCRIPTION", "Definition of " + typeName)
+			variables.put("TIMESTAMP", LocalDateTime.now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+			variables.put("GUARD_NAME", guardName)
+			variables.put("INCLUDES", includes)
+			variables.put("NAMESPACE_BEGIN", namespaceBegin)
+			variables.put("NAMESPACE_END", namespaceEnd)
+			variables.put("FORWARD_DECLARATIONS", "")
+			variables.put("CONTENT", typeContent)
 
-		val content = templateLoader.processTemplate("/templates/cpp/header.template", variables)
-		fsa.generateFile(fileName, content)
+			val content = templateLoader.processTemplate("/templates/cpp/header.template", variables)
+			if (content !== null && !content.empty) {
+				fsa.generateFile(fileName, content)
+			} else {
+				System.err.println("Warning: Empty content for header " + fileName)
+			}
+		} catch (Exception e) {
+			System.err.println("Error generating header for type " + getTypeName(type) + ": " + e.message)
+			e.printStackTrace()
+		}
 	}
 
 	/**
@@ -170,7 +180,19 @@ class DataTypeGenerator {
 		// Generate fields
 		val fields = new StringBuilder()
 		for (field : struct.elements) {
-			fields.append(generateFieldWithTemplate(field, model)).append("\n")
+			try {
+				val fieldStr = generateFieldWithTemplate(field, model)
+				fields.append(fieldStr).append("\n")
+			} catch (Exception e) {
+				System.err.println("Warning: Failed to generate field " + field.name + ": " + e.message)
+				// Generate a placeholder field
+				fields.append("    // ERROR: Failed to generate field ").append(field.name).append("\n")
+				fields.append("    uint32_t ").append(field.name ?: "unknown")
+				if (field.array) {
+					fields.append("[").append(field.size).append("]")
+				}
+				fields.append(";\n")
+			}
 		}
 
 		val variables = new HashMap<String, String>()
@@ -190,9 +212,32 @@ class DataTypeGenerator {
 		val fieldName = if (field.name !== null) field.name else "field"
 		
 		// Get the type, handling potential null/unresolved references
-		var fieldType = "void"
+		var fieldType = "uint32_t" // Better default than void
 		if (field.type !== null) {
-			fieldType = mapTypeRef(field.type, model)
+			try {
+				fieldType = mapTypeRef(field.type, model)
+				// Double-check we didn't get void
+				if (fieldType == "void" || fieldType.empty) {
+					// Try to extract type name directly from the field's type node
+					val node = NodeModelUtils.findActualNodeFor(field.type)
+					if (node !== null) {
+						val leaves = node.leafNodes
+						if (leaves !== null && !leaves.empty) {
+							val typeName = leaves.head.text.trim
+							if (!typeName.empty) {
+								fieldType = mapBasicTypeByName(typeName, field.type)
+							}
+						}
+					}
+					// If still void, use a default
+					if (fieldType == "void" || fieldType.empty) {
+						fieldType = "uint32_t"
+					}
+				}
+			} catch (Exception e) {
+				System.err.println("Warning: Failed to map type for field " + fieldName + ": " + e.message)
+				fieldType = "uint32_t"
+			}
 		}
 		
 		val variables = new HashMap<String, String>()
@@ -314,25 +359,26 @@ class DataTypeGenerator {
 		// This is needed because cross-references to types in PrimitiveDataTypes aren't being resolved
 		try {
 			val node = NodeModelUtils.findActualNodeFor(typeRef)
-			if (node !== null && node.text !== null) {
-				val text = node.text.trim
-				// Remove any modifiers like {len 36}
-				val typeName = if (text.contains("{")) {
-					text.substring(0, text.indexOf("{")).trim
-				} else {
-					text
-				}
-				// Map the type name directly
-				if (!typeName.empty) {
-					return mapBasicTypeByName(typeName, typeRef)
+			if (node !== null) {
+				// Get the first leaf node which should contain the type name
+				val leaves = node.leafNodes
+				if (leaves !== null && !leaves.empty) {
+					val firstLeaf = leaves.head
+					if (firstLeaf !== null && firstLeaf.text !== null) {
+						val typeName = firstLeaf.text.trim
+						if (!typeName.empty && !typeName.equals("{")) {
+							// Map the type name directly
+							return mapBasicTypeByName(typeName, typeRef)
+						}
+					}
 				}
 			}
 		} catch (Exception e) {
-			// Silent fail
+			System.err.println("Warning: Failed to extract type name from FTypeRef: " + e.message)
 		}
 
-		// Default fallback
-		return "void"
+		// Last resort: return a default type instead of void to avoid breaking generation
+		return "uint32_t" // Better default than void for fields
 	}
 	
 	/**

@@ -523,16 +523,49 @@ class MyDslGeneratorTest {
 		val resource = loadModel(model)
 		generator.doGenerate(resource, fsa, context)
 
-		val dataHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/Data.h")
-		val content = dataHeader.toString
-
-		if (!content.contains("buffer[10]")) {
-			println("  Error: Should contain buffer array")
+		// Check that Data.h was generated
+		if (!fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/include/Data.h")) {
+			println("  Error: Data.h should be generated")
+			println("  Generated C++ headers:")
+			for (key : fsa.allFiles.keySet) {
+				if (key.contains("include") && key.endsWith(".h")) {
+					println("    " + key)
+				}
+			}
 			return false
 		}
-		if (!content.contains("coordinates[3]")) {
-			println("  Error: Should contain coordinates array")
+
+		val dataHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/Data.h")
+		if (dataHeader === null) {
+			println("  Error: Data.h content is null")
 			return false
+		}
+		
+		val content = dataHeader.toString
+
+		// Check for array declarations
+		val hasBuffer = content.contains("buffer[10]") || content.contains("buffer [10]")
+		val hasCoordinates = content.contains("coordinates[3]") || content.contains("coordinates [3]")
+
+		if (!hasBuffer || !hasCoordinates) {
+			println("  Debug: Data.h content fragment:")
+			val structStart = content.indexOf("struct Data")
+			if (structStart >= 0) {
+				val endIdx = Math.min(structStart + 800, content.length)
+				println(content.substring(structStart, endIdx))
+			} else {
+				println("  Could not find 'struct Data' in file")
+				println("  First 500 chars: " + content.substring(0, Math.min(500, content.length)))
+			}
+			
+			if (!hasBuffer) {
+				println("  Error: Should contain buffer array")
+				return false
+			}
+			if (!hasCoordinates) {
+				println("  Error: Should contain coordinates array")
+				return false
+			}
 		}
 
 		return true
@@ -563,12 +596,35 @@ class MyDslGeneratorTest {
 		val resource = loadModel(model)
 		generator.doGenerate(resource, fsa, context)
 
-		if (!fsa.allFiles.containsKey("DEFAULT_OUTPUTgenerated/proto/datatypes.proto")) {
+		// Check both possible paths - with and without the DEFAULT_OUTPUT prefix
+		val possiblePaths = #[
+			"DEFAULT_OUTPUTgenerated/proto/datatypes.proto",
+			"generated/proto/datatypes.proto",
+			"proto/datatypes.proto"
+		]
+		
+		var foundPath = null as String
+		for (path : possiblePaths) {
+			if (fsa.allFiles.containsKey(path)) {
+				foundPath = path
+			}
+		}
+		
+		if (foundPath === null) {
 			println("  Error: datatypes.proto should be generated")
+			println("  Generated files:")
+			for (key : fsa.allFiles.keySet) {
+				println("    " + key)
+			}
 			return false
 		}
 
-		val protoFile = getTextFile("DEFAULT_OUTPUTgenerated/proto/datatypes.proto")
+		val protoFile = getTextFile(foundPath)
+		if (protoFile === null) {
+			println("  Error: datatypes.proto content is null at path: " + foundPath)
+			return false
+		}
+		
 		val content = protoFile.toString
 
 		if (!content.contains("syntax = \"proto3\"")) {

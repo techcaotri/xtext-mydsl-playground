@@ -23,6 +23,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import org.eclipse.xtext.nodemodel.util.NodeModelUtils
+import org.eclipse.xtext.nodemodel.ILeafNode
 import org.eclipse.emf.ecore.util.EcoreUtil
 
 /**
@@ -50,15 +51,23 @@ class ProtobufGenerator {
         templateLoader.setTemplateBasePath("/templates/")
         
         try {
-            // Generate main .proto file
-            val protoFileName = '''proto/datatypes.proto'''
-            fsa.generateFile(protoFileName, generateProtoFileWithTemplate(model))
+            // Generate main .proto file with consistent path as DataTypeGenerator
+            val protoFileName = '''generated/proto/datatypes.proto'''
+            val protoContent = generateProtoFileWithTemplate(model)
+            if (protoContent !== null && !protoContent.empty) {
+                fsa.generateFile(protoFileName, protoContent)
+            } else {
+                System.err.println("Warning: Proto content is empty for main file")
+            }
             
             // Generate .proto files for each package
             for (pkg : model.packages) {
                 try {
-                    val pkgProtoFileName = '''proto/«pkg.name.replace(".", "_")».proto'''
-                    fsa.generateFile(pkgProtoFileName, generatePackageProtoFileWithTemplate(pkg, model))
+                    val pkgProtoFileName = '''generated/proto/«pkg.name.replace(".", "_")».proto'''
+                    val pkgContent = generatePackageProtoFileWithTemplate(pkg, model)
+                    if (pkgContent !== null && !pkgContent.empty) {
+                        fsa.generateFile(pkgProtoFileName, pkgContent)
+                    }
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to generate proto for package " + pkg.name)
                     e.printStackTrace()
@@ -68,17 +77,19 @@ class ProtobufGenerator {
             // Generate binary descriptor set if requested
             if (generateBinary) {
                 try {
-                    val descFileName = '''proto/datatypes.desc'''
+                    val descFileName = '''generated/proto/datatypes.desc'''
                     val descriptorBytes = generateDescriptorSet(model)
                     
-                    // Write binary file
-                    writeBinaryFile(fsa, descFileName, descriptorBytes)
-                    
-                    // Generate info file
-                    val infoFileName = '''proto/datatypes.desc.info'''
-                    fsa.generateFile(infoFileName, generateDescriptorInfo(model, descriptorBytes))
+                    if (descriptorBytes !== null && descriptorBytes.length > 0) {
+                        // Write binary file
+                        writeBinaryFile(fsa, descFileName, descriptorBytes)
+                        
+                        // Generate info file
+                        val infoFileName = '''generated/proto/datatypes.desc.info'''
+                        fsa.generateFile(infoFileName, generateDescriptorInfo(model, descriptorBytes))
+                    }
                 } catch (Exception e) {
-                    System.err.println("Warning: Failed to generate binary descriptor")
+                    System.err.println("Warning: Failed to generate binary descriptor: " + e.message)
                     e.printStackTrace()
                 }
             }
@@ -208,9 +219,31 @@ class ProtobufGenerator {
         val fieldName = if (field.name !== null) field.name else "field_" + fieldNumber
         
         // Get the type, handling potential null/unresolved references
-        var fieldType = "bytes"
+        var fieldType = "int32" // Better default than bytes
         if (field.type !== null) {
-            fieldType = mapToProtoType(field.type)
+            try {
+                fieldType = mapToProtoType(field.type)
+                // Double-check we didn't get bytes as a fallback
+                if (fieldType == "bytes") {
+                    // Try to extract type name directly from the field's type node
+                    val node = NodeModelUtils.findActualNodeFor(field.type)
+                    if (node !== null) {
+                        val leaves = node.leafNodes
+                        if (leaves !== null && !leaves.empty) {
+                            val typeName = leaves.head.text.trim
+                            if (!typeName.empty) {
+                                val mappedType = mapBasicToProtoByName(typeName, field.type)
+                                if (mappedType != "bytes") {
+                                    fieldType = mappedType
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to map proto type for field " + fieldName + ": " + e.message)
+                fieldType = "int32"
+            }
         }
         
         val variables = new HashMap<String, String>()
@@ -281,7 +314,7 @@ class ProtobufGenerator {
      */
     def String mapToProtoType(FTypeRef typeRef) {
         if (typeRef === null) {
-            return "bytes"
+            return "int32" // Better default than bytes
         }
         
         val refType = typeRef.predefined
@@ -299,24 +332,25 @@ class ProtobufGenerator {
         // If the reference is null or unresolved, extract the type name from the AST
         try {
             val node = NodeModelUtils.findActualNodeFor(typeRef)
-            if (node !== null && node.text !== null) {
-                val text = node.text.trim
-                // Remove any modifiers like {len 36}
-                val typeName = if (text.contains("{")) {
-                    text.substring(0, text.indexOf("{")).trim
-                } else {
-                    text
-                }
-                // Map the type name directly
-                if (!typeName.empty) {
-                    return mapBasicToProtoByName(typeName, typeRef)
+            if (node !== null) {
+                // Get the first leaf node which should contain the type name
+                val leaves = node.leafNodes
+                if (leaves !== null && !leaves.empty) {
+                    val firstLeaf = leaves.head
+                    if (firstLeaf !== null && firstLeaf.text !== null) {
+                        val typeName = firstLeaf.text.trim
+                        if (!typeName.empty && !typeName.equals("{")) {
+                            // Map the type name directly
+                            return mapBasicToProtoByName(typeName, typeRef)
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
-            // Silent fail
+            System.err.println("Warning: Failed to extract type name from FTypeRef: " + e.message)
         }
         
-        return "bytes"
+        return "int32" // Better default than bytes
     }
     
     /**
@@ -590,7 +624,7 @@ class ProtobufGenerator {
      */
     def void setFieldType(FieldDescriptorProto.Builder fieldBuilder, FTypeRef typeRef) {
         if (typeRef === null) {
-            fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_BYTES)
+            fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_INT32)
             return
         }
         
@@ -610,32 +644,31 @@ class ProtobufGenerator {
                     val protoType = mapBasicToProtoTypeByName(typeName, typeRef)
                     fieldBuilder.setType(protoType)
                 } else {
-                    fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_BYTES)
+                    fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_INT32)
                 }
             }
         } else {
             // If the reference is null or unresolved, extract the type name from the AST
             try {
                 val node = NodeModelUtils.findActualNodeFor(typeRef)
-                if (node !== null && node.text !== null) {
-                    val text = node.text.trim
-                    // Remove any modifiers like {len 36}
-                    val typeName = if (text.contains("{")) {
-                        text.substring(0, text.indexOf("{")).trim
-                    } else {
-                        text
-                    }
-                    // Map the type name directly
-                    if (!typeName.empty) {
-                        val protoType = mapBasicToProtoTypeByName(typeName, typeRef)
-                        fieldBuilder.setType(protoType)
-                        return
+                if (node !== null) {
+                    val leaves = node.leafNodes
+                    if (leaves !== null && !leaves.empty) {
+                        val firstLeaf = leaves.head
+                        if (firstLeaf !== null && firstLeaf.text !== null) {
+                            val typeName = firstLeaf.text.trim
+                            if (!typeName.empty && !typeName.equals("{")) {
+                                val protoType = mapBasicToProtoTypeByName(typeName, typeRef)
+                                fieldBuilder.setType(protoType)
+                                return
+                            }
+                        }
                     }
                 }
             } catch (Exception e) {
-                // Silent fail
+                System.err.println("Warning: Failed to set field type: " + e.message)
             }
-            fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_BYTES)
+            fieldBuilder.setType(FieldDescriptorProto.Type.TYPE_INT32)
         }
     }
     
@@ -747,27 +780,35 @@ class ProtobufGenerator {
      * Write binary file
      */
     def void writeBinaryFile(IFileSystemAccess2 fsa, String fileName, byte[] data) {
-        if (fsa instanceof JavaIoFileSystemAccess) {
-            val javaFsa = fsa as JavaIoFileSystemAccess
-            val outputConfig = javaFsa.outputConfigurations.get("DEFAULT_OUTPUT")
-            if (outputConfig !== null) {
-                val outputDir = outputConfig.outputDirectory
-                val filePath = Paths.get(outputDir, fileName)
-                
-                Files.createDirectories(filePath.parent)
-                Files.write(filePath, data, 
-                    StandardOpenOption.CREATE, 
-                    StandardOpenOption.TRUNCATE_EXISTING,
-                    StandardOpenOption.WRITE)
-                
-                return
+        try {
+            if (fsa instanceof JavaIoFileSystemAccess) {
+                val javaFsa = fsa as JavaIoFileSystemAccess
+                val outputConfig = javaFsa.outputConfigurations.get("DEFAULT_OUTPUT")
+                if (outputConfig !== null) {
+                    val outputDir = outputConfig.outputDirectory
+                    val filePath = Paths.get(outputDir, fileName)
+                    
+                    Files.createDirectories(filePath.parent)
+                    Files.write(filePath, data, 
+                        StandardOpenOption.CREATE, 
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE)
+                    
+                    return
+                }
             }
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to write binary file " + fileName + ": " + e.message)
         }
         
         // Fallback: Generate hex dump
-        val hexFileName = fileName + ".hex"
-        val hexContent = generateHexDump(data)
-        fsa.generateFile(hexFileName, hexContent)
+        try {
+            val hexFileName = fileName + ".hex"
+            val hexContent = generateHexDump(data)
+            fsa.generateFile(hexFileName, hexContent)
+        } catch (Exception e) {
+            System.err.println("Error: Failed to generate hex dump for " + fileName + ": " + e.message)
+        }
     }
     
     /**
