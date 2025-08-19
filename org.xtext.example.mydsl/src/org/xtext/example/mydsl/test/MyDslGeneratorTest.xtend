@@ -44,12 +44,12 @@ class MyDslGeneratorTest {
 			if (inputFile.isEmpty()) {
 				runAllTests()
 			} else {
-        		val file = new File(inputFile)
-        		if (file.exists) {
-                  tester.testFile(inputFile)
-        		} else {
-        			runAllTests()
-        		}
+				val file = new File(inputFile)
+				if (file.exists) {
+					tester.testFile(inputFile)
+				} else {
+					runAllTests()
+				}
 			}
 		}
 	}
@@ -293,6 +293,18 @@ class MyDslGeneratorTest {
 
 		// Check content contains struct definition
 		val content = personHeader.toString
+
+		// Debug output if either field is missing
+		if (!content.contains("struct Person") || !content.contains("uint32_t id") ||
+			!content.contains("std::string name")) {
+			println("  Debug: Person.h content fragment:")
+			val structStart = content.indexOf("struct Person")
+			if (structStart >= 0) {
+				val fragment = content.substring(structStart, Math.min(structStart + 500, content.length))
+				println(fragment)
+			}
+		}
+
 		if (!content.contains("struct Person")) {
 			println("  Error: Should contain struct Person")
 			return false
@@ -407,7 +419,24 @@ class MyDslGeneratorTest {
 		}
 
 		val typedefHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/UUID.h")
+		if (typedefHeader === null) {
+			println("  Error: UUID.h content is null")
+			return false
+		}
+
 		val content = typedefHeader.toString
+
+		// Debug output if std::string is missing
+		if (!content.contains("std::string")) {
+			println("  Debug: UUID.h content fragment:")
+			val usingIdx = content.indexOf("using UUID")
+			if (usingIdx >= 0) {
+				val fragment = content.substring(usingIdx, Math.min(usingIdx + 200, content.length))
+				println(fragment)
+			} else {
+				println("  First 300 chars: " + content.substring(0, Math.min(300, content.length)))
+			}
+		}
 
 		if (!content.contains("using UUID")) {
 			println("  Error: Should contain using UUID")
@@ -452,7 +481,7 @@ class MyDslGeneratorTest {
 			println("  Error: Should contain namespace")
 			return false
 		}
-		
+
 		// Check that the field 'val' is generated
 		if (!content.contains("uint32_t val")) {
 			println("  Error: Should contain uint32_t val")
@@ -540,14 +569,14 @@ class MyDslGeneratorTest {
 			println("  Error: Data.h content is null")
 			return false
 		}
-		
+
 		val content = dataHeader.toString
 
-		// Check for array declarations
-		val hasBuffer = content.contains("buffer[10]") || content.contains("buffer [10]")
-		val hasCoordinates = content.contains("coordinates[3]") || content.contains("coordinates [3]")
+		// Check for correct types and array declarations (with new field template order)
+		val hasUint8Buffer = content.contains("uint8_t buffer[10]")
+		val hasFloat32Coords = content.contains("float coordinates[3]")
 
-		if (!hasBuffer || !hasCoordinates) {
+		if (!hasUint8Buffer || !hasFloat32Coords) {
 			println("  Debug: Data.h content fragment:")
 			val structStart = content.indexOf("struct Data")
 			if (structStart >= 0) {
@@ -557,13 +586,21 @@ class MyDslGeneratorTest {
 				println("  Could not find 'struct Data' in file")
 				println("  First 500 chars: " + content.substring(0, Math.min(500, content.length)))
 			}
-			
-			if (!hasBuffer) {
-				println("  Error: Should contain buffer array")
+
+			if (!hasUint8Buffer) {
+				println("  Error: Should contain 'uint8_t buffer[10]'")
+				// Also check for wrong pattern to understand the issue
+				if (content.contains("uint32_t buffer[10]")) {
+					println("  Found 'uint32_t buffer[10]' instead - type mapping issue")
+				}
 				return false
 			}
-			if (!hasCoordinates) {
-				println("  Error: Should contain coordinates array")
+			if (!hasFloat32Coords) {
+				println("  Error: Should contain 'float coordinates[3]'")
+				// Also check for wrong pattern
+				if (content.contains("uint32_t coordinates[3]")) {
+					println("  Found 'uint32_t coordinates[3]' instead - type mapping issue")
+				}
 				return false
 			}
 		}
@@ -602,14 +639,14 @@ class MyDslGeneratorTest {
 			"generated/proto/datatypes.proto",
 			"proto/datatypes.proto"
 		]
-		
+
 		var foundPath = null as String
 		for (path : possiblePaths) {
 			if (fsa.allFiles.containsKey(path)) {
 				foundPath = path
 			}
 		}
-		
+
 		if (foundPath === null) {
 			println("  Error: datatypes.proto should be generated")
 			println("  Generated files:")
@@ -624,7 +661,7 @@ class MyDslGeneratorTest {
 			println("  Error: datatypes.proto content is null at path: " + foundPath)
 			return false
 		}
-		
+
 		val content = protoFile.toString
 
 		if (!content.contains("syntax = \"proto3\"")) {
@@ -676,14 +713,14 @@ class MyDslGeneratorTest {
 			println("  Error: Should contain project")
 			return false
 		}
-		
+
 		// Also check that Test.h was generated with the right field
 		val testHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/Test.h")
 		if (testHeader !== null) {
 			val testContent = testHeader.toString
 			if (!testContent.contains("uint32_t val")) {
 				println("  Error: Test.h should contain uint32_t val")
-				return false  
+				return false
 			}
 		}
 
@@ -746,7 +783,7 @@ class MyDslGeneratorTest {
 			println("  Error: Should generate Identifier.h")
 			return false
 		}
-		
+
 		// Check that Extended.h contains the vals array field
 		val extendedHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/com.test/Extended.h")
 		if (extendedHeader !== null) {
@@ -773,19 +810,19 @@ class MyDslGeneratorTest {
 
 		val fileURI = URI.createFileURI(file.absolutePath)
 		val resource = resourceSet.getResource(fileURI, true)
-		
+
 		// Force resolution of cross-references
 		EcoreUtil.resolveAll(resource)
-		
+
 		// Check for errors after resolution but don't fail - just warn
 		if (!resource.errors.empty) {
 			println("Warning: Model contains errors after loading:")
 			for (error : resource.errors) {
 				println("  " + error.message)
 			}
-			// Don't fail - let the generator try to handle unresolved references
+		// Don't fail - let the generator try to handle unresolved references
 		}
-		
+
 		return resource
 	}
 
@@ -888,8 +925,18 @@ class MyDslGeneratorTest {
 		}
 
 		try {
-			java.nio.file.Files.write(outputFile.toPath, data)
-			println("    ✓ " + filePath + " (binary)")
+			// Check if this is actually binary data from the cache
+			val cachedData = org.xtext.example.mydsl.generator.ProtobufGenerator.getBinaryData(
+				"generated/proto/datatypes.desc")
+			if (cachedData !== null && filePath.endsWith(".desc")) {
+				// Write the actual binary data from cache
+				java.nio.file.Files.write(outputFile.toPath, cachedData)
+				println("    ✓ " + filePath + " (binary from cache, " + cachedData.length + " bytes)")
+			} else {
+				// Write the provided data
+				java.nio.file.Files.write(outputFile.toPath, data)
+				println("    ✓ " + filePath + " (binary, " + data.length + " bytes)")
+			}
 		} catch (Exception e) {
 			println("    ✗ " + filePath + " - Error: " + e.message)
 		}

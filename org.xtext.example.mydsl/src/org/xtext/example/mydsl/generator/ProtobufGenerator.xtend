@@ -19,12 +19,16 @@ import com.google.protobuf.DescriptorProtos.FieldDescriptorProto
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto
 import com.google.protobuf.DescriptorProtos.EnumValueDescriptorProto
 import org.eclipse.xtext.generator.JavaIoFileSystemAccess
+import org.eclipse.xtext.generator.InMemoryFileSystemAccess
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 import org.eclipse.xtext.nodemodel.util.NodeModelUtils
 import org.eclipse.xtext.nodemodel.ILeafNode
 import org.eclipse.emf.ecore.util.EcoreUtil
+import java.io.File
+import java.io.FileOutputStream
+import org.eclipse.xtext.generator.IFileSystemAccess
 
 /**
  * Protobuf generator for DataType DSL models using templates
@@ -36,6 +40,9 @@ class ProtobufGenerator {
     
     Map<String, Integer> fieldNumberCounter
     Set<String> imports
+    
+    // Static map to store binary data for test access
+    static val Map<String, byte[]> binaryDataCache = new HashMap<String, byte[]>()
     
     /**
      * Generate Protobuf files for the model
@@ -81,8 +88,8 @@ class ProtobufGenerator {
                     val descriptorBytes = generateDescriptorSet(model)
                     
                     if (descriptorBytes !== null && descriptorBytes.length > 0) {
-                        // Write binary file
-                        writeBinaryFile(fsa, descFileName, descriptorBytes)
+                        // Write binary file directly to filesystem
+                        writeBinaryDescriptor(fsa, descFileName, descriptorBytes)
                         
                         // Generate info file
                         val infoFileName = '''generated/proto/datatypes.desc.info'''
@@ -98,6 +105,155 @@ class ProtobufGenerator {
             e.printStackTrace()
         }
     }
+    
+    /**
+     * Write binary descriptor file directly to filesystem
+     * This avoids text encoding issues with IFileSystemAccess2
+     */
+    def void writeBinaryDescriptor(IFileSystemAccess2 fsa, String fileName, byte[] data) {
+        var success = false
+        
+        try {
+            // Store in cache for later retrieval
+            binaryDataCache.put(fileName, data)
+            
+            // Determine the output directory based on FSA type
+            var outputDir = "generated"
+            
+            // Method 1: For JavaIoFileSystemAccess, get the configured output directory
+            if (fsa instanceof JavaIoFileSystemAccess) {
+                val javaFsa = fsa as JavaIoFileSystemAccess
+                val outputConfig = javaFsa.outputConfigurations?.get(IFileSystemAccess.DEFAULT_OUTPUT)
+                if (outputConfig !== null && outputConfig.outputDirectory !== null) {
+                    outputDir = outputConfig.outputDirectory
+                }
+            }
+            
+            // Method 2: For InMemoryFileSystemAccess (testing), write directly to filesystem
+            // We write to a known location that tests can access
+            if (fsa instanceof InMemoryFileSystemAccess) {
+                // For in-memory FSA, we still write to actual filesystem
+                // but to a predictable location
+                outputDir = "generated"
+                
+                // Also store a marker in the InMemoryFileSystemAccess to indicate
+                // that a binary file was generated
+                val memFsa = fsa as InMemoryFileSystemAccess
+                // Store a text marker file indicating the binary file location
+                val markerContent = '''
+                    Binary file generated: «fileName»
+                    Size: «data.length» bytes
+                    Location: «outputDir»/«fileName»
+                '''
+                memFsa.generateFile(fileName + ".marker", markerContent)
+            }
+            
+            // Write the actual binary file to the filesystem
+            val file = new File(outputDir, fileName)
+            file.parentFile.mkdirs()
+            
+            val fos = new FileOutputStream(file)
+            try {
+                fos.write(data)
+                fos.flush()
+                success = true
+                System.out.println("Binary descriptor written to: " + file.absolutePath)
+            } finally {
+                fos.close()
+            }
+            
+            // If we couldn't write to the expected location, try alternative locations
+            if (!success) {
+                val alternativePaths = #[
+                    "src-gen",
+                    "target/generated-sources",
+                    System.getProperty("user.dir") + "/generated"
+                ]
+                
+                for (altPath : alternativePaths) {
+                    val altFile = new File(altPath, fileName)
+                    if (altFile.parentFile.exists() || altFile.parentFile.mkdirs()) {
+                        try {
+                            val altFos = new FileOutputStream(altFile)
+                            try {
+                                altFos.write(data)
+                                altFos.flush()
+                                success = true
+                                System.out.println("Binary descriptor written to: " + altFile.absolutePath)
+                            } finally {
+                                altFos.close()
+                            }
+                            if (success) {
+                                return
+                            }
+                        } catch (Exception e) {
+                            // Try next path
+                        }
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error writing binary descriptor: " + e.message)
+            e.printStackTrace()
+            
+            // Fallback: Generate Base64 encoded version
+            generateBase64Fallback(fsa, fileName, data)
+        }
+    }
+    
+    /**
+     * Get binary data from cache (for testing purposes)
+     */
+    def static byte[] getBinaryData(String fileName) {
+        return binaryDataCache.get(fileName)
+    }
+    
+    /**
+     * Clear binary data cache
+     */
+    def static void clearBinaryCache() {
+        binaryDataCache.clear()
+    }
+    
+    /**
+     * Generate Base64 encoded fallback file
+     */
+    def void generateBase64Fallback(IFileSystemAccess2 fsa, String fileName, byte[] data) {
+        try {
+            val base64FileName = fileName + ".base64"
+            val base64Content = java.util.Base64.encoder.encodeToString(data)
+            val fileContent = generateBase64FileContent(base64Content, fileName)
+            fsa.generateFile(base64FileName, fileContent)
+            System.out.println("Base64 fallback written to: " + base64FileName)
+        } catch (Exception e) {
+            System.err.println("Failed to generate Base64 fallback: " + e.message)
+        }
+    }
+    
+    /**
+     * Generate Base64 file content with instructions
+     */
+    def CharSequence generateBase64FileContent(String base64Content, String originalFileName) '''
+        # Base64 Encoded Binary Descriptor
+        # Original file: «originalFileName»
+        # Generated: «LocalDateTime.now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)»
+        
+        # To decode this file to binary:
+        # Linux/Mac:
+        #   base64 -d «originalFileName».base64 > «originalFileName»
+        # Windows (PowerShell):
+        #   [System.IO.File]::WriteAllBytes("«originalFileName»", [System.Convert]::FromBase64String((Get-Content "«originalFileName».base64" | Select-String -Pattern "^[A-Za-z0-9+/=]+$")))
+        
+        # Python:
+        #   import base64
+        #   with open("«originalFileName».base64", "r") as f:
+        #       data = base64.b64decode(f.read().split("\n")[-1])
+        #   with open("«originalFileName»", "wb") as f:
+        #       f.write(data)
+        
+        «base64Content»
+    '''
     
     /**
      * Generate main .proto file using template
@@ -402,7 +558,7 @@ class ProtobufGenerator {
     }
     
     /**
-     * Map basic type to proto by name when reference resolution fails
+     * Map basic type by name when reference resolution fails
      */
     def String mapBasicToProtoByName(String typeName, FTypeRef typeRef) {
         val name = typeName.toLowerCase
@@ -428,13 +584,15 @@ class ProtobufGenerator {
             case "float64": return "double"
             case "string": return "string"
             case "byte": return "bytes"
+            case "timestamp": return "bytes"  // timestamp as bytes
             default: {
                 // Check bit length
                 if (typeRef !== null && typeRef.bitLen > 0) {
                     if (typeRef.bitLen <= 32) return "int32"
                     if (typeRef.bitLen <= 64) return "int64"
                 }
-                return "bytes"
+                // For unknown types, use the type name as-is (might be a message type)
+                return typeName
             }
         }
     }
@@ -466,6 +624,7 @@ class ProtobufGenerator {
             case "float64": return "double"
             case "string": return "string"  // Handle both "string" and "String"
             case "byte": return "bytes"
+            case "timestamp": return "bytes"  // timestamp as bytes
             default: {
                 // Check category
                 if (basicType.category == Category.STRING) {
@@ -473,7 +632,7 @@ class ProtobufGenerator {
                 }
                 
                 // Check bit length
-                if (typeRef.bitLen > 0) {
+                if (typeRef !== null && typeRef.bitLen > 0) {
                     if (typeRef.bitLen <= 32) return "int32"
                     if (typeRef.bitLen <= 64) return "int64"
                 }
@@ -699,7 +858,8 @@ class ProtobufGenerator {
             case "float64": return FieldDescriptorProto.Type.TYPE_DOUBLE
             case "string": return FieldDescriptorProto.Type.TYPE_STRING
             case "byte": return FieldDescriptorProto.Type.TYPE_BYTES
-            default: return FieldDescriptorProto.Type.TYPE_BYTES
+            case "timestamp": return FieldDescriptorProto.Type.TYPE_BYTES
+            default: return FieldDescriptorProto.Type.TYPE_MESSAGE  // Assume it's a message type
         }
     }
     
@@ -730,6 +890,7 @@ class ProtobufGenerator {
             case "float64": return FieldDescriptorProto.Type.TYPE_DOUBLE
             case "string": return FieldDescriptorProto.Type.TYPE_STRING  // Handle both "string" and "String"
             case "byte": return FieldDescriptorProto.Type.TYPE_BYTES
+            case "timestamp": return FieldDescriptorProto.Type.TYPE_BYTES
             default: {
                 if (basicType.category == Category.STRING) {
                     return FieldDescriptorProto.Type.TYPE_STRING
@@ -777,51 +938,6 @@ class ProtobufGenerator {
     }
     
     /**
-     * Write binary file
-     */
-    def void writeBinaryFile(IFileSystemAccess2 fsa, String fileName, byte[] data) {
-        try {
-            if (fsa instanceof JavaIoFileSystemAccess) {
-                val javaFsa = fsa as JavaIoFileSystemAccess
-                val outputConfig = javaFsa.outputConfigurations.get("DEFAULT_OUTPUT")
-                if (outputConfig !== null) {
-                    val outputDir = outputConfig.outputDirectory
-                    val filePath = Paths.get(outputDir, fileName)
-                    
-                    Files.createDirectories(filePath.parent)
-                    Files.write(filePath, data, 
-                        StandardOpenOption.CREATE, 
-                        StandardOpenOption.TRUNCATE_EXISTING,
-                        StandardOpenOption.WRITE)
-                    
-                    return
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("Warning: Failed to write binary file " + fileName + ": " + e.message)
-        }
-        
-        // Fallback: Generate hex dump
-        try {
-            val hexFileName = fileName + ".hex"
-            val hexContent = generateHexDump(data)
-            fsa.generateFile(hexFileName, hexContent)
-        } catch (Exception e) {
-            System.err.println("Error: Failed to generate hex dump for " + fileName + ": " + e.message)
-        }
-    }
-    
-    /**
-     * Generate hex dump
-     */
-    def CharSequence generateHexDump(byte[] data) '''
-        # Hex dump of binary descriptor
-        # Length: «data.length» bytes
-        «FOR i : 0 ..< data.length»«String.format("%02X", data.get(i) as int)»«IF (i + 1) % 16 == 0»
-        «ELSEIF (i + 1) < data.length» «ENDIF»«ENDFOR»
-    '''
-    
-    /**
      * Generate descriptor info
      */
     def CharSequence generateDescriptorInfo(Model model, byte[] descriptorBytes) '''
@@ -843,6 +959,11 @@ class ProtobufGenerator {
         To inspect the contents:
         ```bash
         protoc --decode_raw < datatypes.desc
+        ```
+        
+        To decode with the schema:
+        ```bash
+        protoc --decode=google.protobuf.FileDescriptorSet /usr/include/google/protobuf/descriptor.proto < datatypes.desc
         ```
     '''
 }

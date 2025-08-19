@@ -4,39 +4,32 @@
 // Define primitive types
 define CommonTypes {
     type uint8
-        namespace common.types
         category value
         length 8
-        encoding NONE
+        encoding native
     
     type uint16
-        namespace common.types
         category value
         length 16
-        encoding LE
+        encoding little-endian
     
     type uint32
-        namespace common.types
         category value
         length 32
-        encoding LE
+        encoding little-endian
     
     type float32
-        namespace common.types
         category value
         length 32
-        encoding IEEE754
+        encoding iee754
     
-    type string
-        namespace common.types
+    type String
         category string
-        encoding NONE
     
     type timestamp
-        namespace common.types
         category value
         length 64
-        encoding NONE
+        encoding native
 }
 
 // Package for vehicle data types
@@ -44,21 +37,21 @@ package vehicle.data {
     
     <** Vehicle speed information **>
     public struct Speed {
-        type uint16 value
-        type uint8 unit  // 0=km/h, 1=mph
-        type timestamp measured_at
+        uint16 speedValue
+        uint8 speedUnit  // 0=km/h, 1=mph
+        timestamp measured_at
     }
     
     <** GPS Position **>
     public struct Position {
-        type float32 latitude
-        type float32 longitude
-        type float32 altitude
-        type uint8 satellites
-        type timestamp fix_time
+        float32 latitude
+        float32 longitude
+        float32 altitude
+        uint8 satellites
+        timestamp fix_time
     }
     
-    <** Vehicle status enumeration **>
+    <** Vehicle status enum **>
     public enumeration VehicleStatus {
         UNKNOWN = 0,
         PARKED = 1,
@@ -69,12 +62,12 @@ package vehicle.data {
     
     <** Complete vehicle data **>
     public struct VehicleData extends Position {
-        type string vehicle_id
-        type Speed current_speed
-        type VehicleStatus status
-        type uint8[4] tire_pressure  // Array of 4 tire pressures  
-        type float32 battery_level
-        type timestamp last_update
+        String vehicle_id
+        Speed current_speed
+        VehicleStatus status
+        uint8[4] tire_pressure  // Array of 4 tire pressures  
+        float32 battery_level
+        timestamp last_update
     }
 }
 
@@ -83,13 +76,13 @@ package sensor.data {
     
     <** Temperature sensor reading **>
     public struct Temperature {
-        type float32 value
-        type uint8 unit  // 0=Celsius, 1=Fahrenheit
-        type string sensor_id
-        type timestamp reading_time
+        float32 tempValue
+        uint8 tempUnit  // 0=Celsius, 1=Fahrenheit
+        String sensor_id
+        timestamp reading_time
     }
     
-    <** Sensor type enumeration **>
+    <** Sensor types **>
     public enumeration SensorType {
         TEMPERATURE = 0,
         PRESSURE = 1,
@@ -100,11 +93,11 @@ package sensor.data {
     
     <** Generic sensor data **>
     public struct SensorReading {
-        type string sensor_id
-        type SensorType sensor_type
-        type float32 value
-        type string unit
-        type timestamp timestamp
+        String sensor_id
+        SensorType sensor_type
+        float32 sensorValue
+        String unitName
+        timestamp timestamp
     }
 }
 
@@ -112,11 +105,11 @@ package sensor.data {
 
 <** System configuration **>
 public struct SystemConfig {
-    type string system_id
-    type uint32 version
-    type string description
-    type timestamp created_at
-    type timestamp modified_at
+    String system_id
+    uint32 version
+    String desc  // Changed from 'description' which is a keyword
+    timestamp created_at
+    timestamp modified_at
 }
 
 <** Error codes **>
@@ -129,8 +122,8 @@ public enumeration ErrorCode {
     RESOURCE_NOT_FOUND = 5
 }
 
-<** Array type for batch data **>
+<** Array for batch data **>
 public array SensorReadings of sensor.data.SensorReading
 
-<** Type alias for ID **>
-public typedef UniqueId is string { len 36 }  // UUID string
+<** UUID alias **>
+public typedef UniqueId is String { len 36 }  // UUID string

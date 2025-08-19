@@ -216,7 +216,8 @@ class DataTypeGenerator {
 		if (field.type !== null) {
 			try {
 				fieldType = mapTypeRef(field.type, model)
-				// Double-check we didn't get void
+				
+				// Double-check we didn't get void or an unmapped type
 				if (fieldType == "void" || fieldType.empty) {
 					// Try to extract type name directly from the field's type node
 					val node = NodeModelUtils.findActualNodeFor(field.type)
@@ -225,7 +226,12 @@ class DataTypeGenerator {
 						if (leaves !== null && !leaves.empty) {
 							val typeName = leaves.head.text.trim
 							if (!typeName.empty) {
-								fieldType = mapBasicTypeByName(typeName, field.type)
+								// Special handling for String type
+								if (typeName.equals("String")) {
+									fieldType = "std::string"
+								} else {
+									fieldType = mapBasicTypeByName(typeName, field.type)
+								}
 							}
 						}
 					}
@@ -233,6 +239,9 @@ class DataTypeGenerator {
 					if (fieldType == "void" || fieldType.empty) {
 						fieldType = "uint32_t"
 					}
+				} else if (fieldType.equals("String")) {
+					// If we got "String" unmapped, map it to std::string
+					fieldType = "std::string"
 				}
 			} catch (Exception e) {
 				System.err.println("Warning: Failed to map type for field " + fieldName + ": " + e.message)
@@ -307,10 +316,34 @@ class DataTypeGenerator {
 	 * Generate typedef using template
 	 */
 	def String generateTypeDefWithTemplate(FTypeDef typedef, Model model) {
+		var actualType = "uint32_t" // Default
+		
+		// Get the actual type with proper mapping
+		if (typedef.actualType !== null) {
+			actualType = mapTypeRef(typedef.actualType, model)
+			
+			// Special handling for String type
+			if (actualType.equals("String") || actualType.equals("void")) {
+				// Try to extract type name directly
+				val node = NodeModelUtils.findActualNodeFor(typedef.actualType)
+				if (node !== null) {
+					val leaves = node.leafNodes
+					if (leaves !== null && !leaves.empty) {
+						val typeName = leaves.head.text.trim
+						if (typeName.equals("String")) {
+							actualType = "std::string"
+						} else if (!typeName.empty) {
+							actualType = mapBasicTypeByName(typeName, typedef.actualType)
+						}
+					}
+				}
+			}
+		}
+		
 		val variables = new HashMap<String, String>()
 		variables.put("COMMENT", generateComment(typedef.comment))
 		variables.put("TYPEDEF_NAME", typedef.name)
-		variables.put("ACTUAL_TYPE", mapTypeRef(typedef.actualType, model))
+		variables.put("ACTUAL_TYPE", actualType)
 
 		return templateLoader.processTemplate("/templates/cpp/typedef.template", variables)
 	}
@@ -357,28 +390,57 @@ class DataTypeGenerator {
 		
 		// If the reference is null or unresolved, extract the type name from the AST
 		// This is needed because cross-references to types in PrimitiveDataTypes aren't being resolved
+		var extractedTypeName = null as String
 		try {
 			val node = NodeModelUtils.findActualNodeFor(typeRef)
 			if (node !== null) {
-				// Get the first leaf node which should contain the type name
-				val leaves = node.leafNodes
-				if (leaves !== null && !leaves.empty) {
-					val firstLeaf = leaves.head
-					if (firstLeaf !== null && firstLeaf.text !== null) {
-						val typeName = firstLeaf.text.trim
-						if (!typeName.empty && !typeName.equals("{")) {
-							// Map the type name directly
-							return mapBasicTypeByName(typeName, typeRef)
-						}
+				// Try to get the text directly from the node
+				val text = NodeModelUtils.getTokenText(node)
+				if (text !== null && !text.empty) {
+					extractedTypeName = text.trim
+					// Remove any modifiers like {len 36}
+					if (extractedTypeName.contains("{")) {
+						extractedTypeName = extractedTypeName.substring(0, extractedTypeName.indexOf("{")).trim
 					}
+				}
+				
+				// If that didn't work, try leaf nodes
+				if (extractedTypeName === null || extractedTypeName.empty) {
+					// Extract type name from first non-structural leaf node
+					extractedTypeName = extractTypeNameFromLeafNodes(node.leafNodes)
 				}
 			}
 		} catch (Exception e) {
-			System.err.println("Warning: Failed to extract type name from FTypeRef: " + e.message)
+			// Silent fail - use default
+		}
+		
+		// Map the extracted type name
+		if (extractedTypeName !== null && !extractedTypeName.empty) {
+			// Special handling for String type (capital S)
+			if (extractedTypeName.equals("String")) {
+				return "std::string"
+			}
+			// Map the type name
+			return mapBasicTypeByName(extractedTypeName, typeRef)
 		}
 
 		// Last resort: return a default type instead of void to avoid breaking generation
 		return "uint32_t" // Better default than void for fields
+	}
+	
+	/**
+	 * Helper method to extract type name from leaf nodes
+	 */
+	def private String extractTypeNameFromLeafNodes(Iterable<ILeafNode> leafNodes) {
+		for (leaf : leafNodes) {
+			val leafText = leaf.text.trim
+			if (!leafText.empty && !leafText.equals("{") && !leafText.equals("}") && 
+				!leafText.equals("len") && !leafText.equals("=")) {
+				// Found the type name, return it
+				return leafText
+			}
+		}
+		return null
 	}
 	
 	/**
@@ -433,10 +495,56 @@ class DataTypeGenerator {
 	 * Map basic type by name when reference resolution fails
 	 */
 	def String mapBasicTypeByName(String typeName, FTypeRef typeRef) {
-		val name = typeName.toLowerCase
+		if (typeName === null || typeName.empty) {
+			return "uint32_t"
+		}
 		
+		// Don't convert to lowercase - check both exact and lowercase matches
 		// Map based on name
-		switch (name) {
+		switch (typeName) {
+			// Check exact matches first
+			case "String": return "std::string"
+			case "uint8": return "uint8_t"
+			case "uint16": return "uint16_t"  
+			case "uint32": return "uint32_t"
+			case "uint64": return "uint64_t"
+			case "int8": return "int8_t"
+			case "int16": return "int16_t"
+			case "int32": return "int32_t"
+			case "int64": return "int64_t"
+			case "float32": return "float"
+			case "float64": return "double"
+			// Then check common variations
+			case "bool": return "bool"
+			case "boolean": return "bool"
+			case "int": return "int32_t"
+			case "uint": return "uint32_t"
+			case "long": return "int64_t"
+			case "ulong": return "uint64_t"
+			case "float": return "float"
+			case "double": return "double"
+			case "string": return "std::string"
+			case "byte": return "uint8_t"
+			case "char": return "char"
+			case "wchar": return "wchar_t"
+		}
+		
+		// Handle bit length if specified
+		if (typeRef !== null && typeRef.bitLen > 0) {
+			if(typeRef.bitLen <= 8) return "uint8_t"
+			if(typeRef.bitLen <= 16) return "uint16_t"
+			if(typeRef.bitLen <= 32) return "uint32_t"
+			if(typeRef.bitLen <= 64) return "uint64_t"
+		}
+		
+		// If it's a user type (starts with capital), return as-is
+		if (typeName.length > 0 && Character.isUpperCase(typeName.charAt(0))) {
+			return typeName
+		}
+		
+		// Try lowercase mapping as fallback
+		val nameLower = typeName.toLowerCase
+		switch (nameLower) {
 			case "bool": return "bool"
 			case "boolean": return "bool"
 			case "int8": return "int8_t"
@@ -461,26 +569,18 @@ class DataTypeGenerator {
 			case "wchar": return "wchar_t"
 		}
 		
-		// Handle bit length if specified
-		if (typeRef !== null && typeRef.bitLen > 0) {
-			if(typeRef.bitLen <= 8) return "uint8_t"
-			if(typeRef.bitLen <= 16) return "uint16_t"
-			if(typeRef.bitLen <= 32) return "uint32_t"
-			if(typeRef.bitLen <= 64) return "uint64_t"
-		}
-		
-		// Default
-		return typeName
+		return "uint32_t"
 	}
 
 	/**
 	 * Map basic type to C++ type
 	 */
 	def String mapBasicType(FBasicTypeId basicType, FTypeRef typeRef) {
-		val name = basicType.name.toLowerCase
+		val name = basicType.name
+		val nameLower = name.toLowerCase
 
 		// Map based on name and properties
-		switch (name) {
+		switch (nameLower) {
 			case "bool": return "bool"
 			case "boolean": return "bool"
 			case "int8": return "int8_t"
@@ -511,14 +611,19 @@ class DataTypeGenerator {
 		}
 
 		// Check if it has a specific bit length
-		if (typeRef.bitLen > 0) {
+		if (typeRef !== null && typeRef.bitLen > 0) {
 			if(typeRef.bitLen <= 8) return "uint8_t"
 			if(typeRef.bitLen <= 16) return "uint16_t"
 			if(typeRef.bitLen <= 32) return "uint32_t"
 			if(typeRef.bitLen <= 64) return "uint64_t"
 		}
 
-		// Default
+		// If the original name is "String" with capital S, return std::string
+		if (name.equals("String")) {
+			return "std::string"
+		}
+
+		// Default - return the basic type name
 		return basicType.name
 	}
 
