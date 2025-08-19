@@ -2,4 +2,4 @@ src-gen/
 xtend-gen/
 target/
 model/generated/
-generated/generated/
+generated/generated

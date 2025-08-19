@@ -31,7 +31,7 @@ class DataTypeGenerator {
 		if (templateLoader === null) {
 			templateLoader = new TemplateLoader()
 		}
-		templateLoader.setTemplateBasePath("/templates/")
+		templateLoader.setTemplateBasePath("templates/")
 
 		try {
 			// Generate types header file
@@ -88,7 +88,7 @@ class DataTypeGenerator {
 		variables.put("TIMESTAMP", LocalDateTime.now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
 		variables.put("TYPE_INCLUDES", includes.toString())
 
-		val content = templateLoader.processTemplate("/templates/cpp/types_header.template", variables)
+		val content = templateLoader.processTemplate("cpp/types_header.template", variables)
 		fsa.generateFile(fileName, content)
 	}
 
@@ -110,7 +110,7 @@ class DataTypeGenerator {
 			// Build includes
 			val includesVars = new HashMap<String, String>()
 			includesVars.put("CUSTOM_INCLUDES", generateCustomIncludes(type, model))
-			val includes = templateLoader.processTemplate("/templates/cpp/includes.template", includesVars)
+			val includes = templateLoader.processTemplate("cpp/includes.template", includesVars)
 
 			// Build namespace
 			val namespaceBegin = if (pkg !== null) '''namespace «pkg.name.replace(".", "::")» {''' else ""
@@ -131,7 +131,7 @@ class DataTypeGenerator {
 			variables.put("FORWARD_DECLARATIONS", "")
 			variables.put("CONTENT", typeContent)
 
-			val content = templateLoader.processTemplate("/templates/cpp/header.template", variables)
+			val content = templateLoader.processTemplate("cpp/header.template", variables)
 			if (content !== null && !content.empty) {
 				fsa.generateFile(fileName, content)
 			} else {
@@ -201,7 +201,7 @@ class DataTypeGenerator {
 		variables.put("BASE_CLASS", if(struct.base !== null) " : public " + struct.base.name else "")
 		variables.put("FIELDS", fields.toString())
 
-		return templateLoader.processTemplate("/templates/cpp/struct.template", variables)
+		return templateLoader.processTemplate("cpp/struct.template", variables)
 	}
 
 	/**
@@ -256,7 +256,7 @@ class DataTypeGenerator {
 		variables.put("FIELD_NAME", fieldName)
 		variables.put("INITIALIZER", generateFieldInitializer(field))
 
-		return templateLoader.processTemplate("/templates/cpp/field.template", variables)
+		return templateLoader.processTemplate("cpp/field.template", variables)
 	}
 
 	/**
@@ -297,7 +297,7 @@ class DataTypeGenerator {
 		variables.put("BASE_TYPE", if(enumType.base !== null) " : " + enumType.base.name else " : int32_t")
 		variables.put("ENUMERATORS", enumerators.toString())
 
-		return templateLoader.processTemplate("/templates/cpp/enum.template", variables)
+		return templateLoader.processTemplate("cpp/enum.template", variables)
 	}
 
 	/**
@@ -309,7 +309,7 @@ class DataTypeGenerator {
 		variables.put("ARRAY_NAME", array.name)
 		variables.put("ELEMENT_TYPE", mapTypeRef(array.elementType, model))
 
-		return templateLoader.processTemplate("/templates/cpp/array.template", variables)
+		return templateLoader.processTemplate("cpp/array.template", variables)
 	}
 
 	/**
@@ -345,7 +345,7 @@ class DataTypeGenerator {
 		variables.put("TYPEDEF_NAME", typedef.name)
 		variables.put("ACTUAL_TYPE", actualType)
 
-		return templateLoader.processTemplate("/templates/cpp/typedef.template", variables)
+		return templateLoader.processTemplate("cpp/typedef.template", variables)
 	}
 
 	/**
@@ -675,7 +675,7 @@ class DataTypeGenerator {
 		variables.put("PROJECT_NAME", "DataTypes")
 		variables.put("VERSION", "1.0.0")
 
-		val content = templateLoader.processTemplate("/templates/cmake/CMakeLists.template", variables)
+		val content = templateLoader.processTemplate("cmake/CMakeLists.template", variables)
 		fsa.generateFile(fileName, content)
 	}
 }

@@ -25,7 +25,7 @@ class TemplateLoader {
 
 	// Configuration
 	var boolean cacheEnabled = true
-	var String templateBasePath = "/templates/"
+	var String templateBasePath = "templates/"
 
 	/**
 	 * Enable or disable template caching
@@ -76,7 +76,20 @@ class TemplateLoader {
 	 */
 	private def String loadFromClasspath(String templatePath) {
 		try {
-			val stream = class.getResourceAsStream(templatePath)
+			// Try with /resources prefix first
+			var stream = class.getResourceAsStream("/resources/" + templatePath)
+			if (stream !== null) {
+				return readStream(stream)
+			}
+			
+			// Try without /resources prefix
+			stream = class.getResourceAsStream("/" + templatePath)
+			if (stream !== null) {
+				return readStream(stream)
+			}
+			
+			// Try without leading slash
+			stream = class.getResourceAsStream(templatePath)
 			if (stream !== null) {
 				return readStream(stream)
 			}
@@ -92,7 +105,7 @@ class TemplateLoader {
 	private def String loadFromFileSystem(String templatePath) {
 		try {
 			// Try relative path first
-			var Path path = Paths.get("src/resources" + templatePath)
+			var Path path = Paths.get("src/resources/" + templatePath)
 
 			if (!Files.exists(path)) {
 				// Try without src/resources prefix
@@ -141,7 +154,14 @@ class TemplateLoader {
 	 * Process template with variable replacements
 	 */
 	def String processTemplate(String templatePath, Map<String, String> variables) {
-		var template = loadTemplate(templatePath)
+		// Remove leading slash if present to avoid double slashes
+		val cleanPath = if (templatePath.startsWith("/")) {
+			templatePath.substring(1)
+		} else {
+			templatePath
+		}
+		
+		var template = loadTemplate(cleanPath)
 
 		if (template.empty) {
 			return ""

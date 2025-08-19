@@ -55,7 +55,7 @@ class ProtobufGenerator {
         if (templateLoader === null) {
             templateLoader = new TemplateLoader()
         }
-        templateLoader.setTemplateBasePath("/templates/")
+        templateLoader.setTemplateBasePath("templates/")
         
         try {
             // Generate main .proto file with consistent path as DataTypeGenerator
@@ -293,7 +293,7 @@ class ProtobufGenerator {
         variables.put("IMPORTS", imports.toString())
         variables.put("CONTENT", content.toString())
         
-        return templateLoader.processTemplate("/templates/proto/file.template", variables)
+        return templateLoader.processTemplate("proto/file.template", variables)
     }
     
     /**
@@ -324,7 +324,7 @@ class ProtobufGenerator {
         variables.put("IMPORTS", "")
         variables.put("CONTENT", content.toString())
         
-        return templateLoader.processTemplate("/templates/proto/file.template", variables)
+        return templateLoader.processTemplate("proto/file.template", variables)
     }
     
     /**
@@ -364,7 +364,7 @@ class ProtobufGenerator {
         variables.put("MESSAGE_NAME", struct.name)
         variables.put("FIELDS", fields.toString())
         
-        return templateLoader.processTemplate("/templates/proto/message.template", variables)
+        return templateLoader.processTemplate("proto/message.template", variables)
     }
     
     /**
@@ -409,7 +409,7 @@ class ProtobufGenerator {
         variables.put("FIELD_NAME", toSnakeCase(fieldName))
         variables.put("FIELD_NUMBER", String.valueOf(fieldNumber))
         
-        return templateLoader.processTemplate("/templates/proto/field.template", variables)
+        return templateLoader.processTemplate("proto/field.template", variables)
     }
     
     /**
@@ -446,7 +446,7 @@ class ProtobufGenerator {
         variables.put("ENUM_NAME", enumType.name)
         variables.put("ENUMERATORS", enumerators.toString())
         
-        return templateLoader.processTemplate("/templates/proto/enum.template", variables)
+        return templateLoader.processTemplate("proto/enum.template", variables)
     }
     
     /**
