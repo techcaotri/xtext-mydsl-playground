@@ -6,80 +6,80 @@
 // ============================================
 
 define CoreTypes {
-    type bool
+    type Bool
         category value
         length 1
-        encoding BOOLEAN
+        encoding bool
         
     type int8
         category value
         length 8
-        encoding SIGNED
+        encoding 2C
         
     type uint8
         category value
         length 8
-        encoding NONE
+        encoding native
         
     type int16
         category value
         length 16
-        encoding SIGNED
+        encoding 2C
         emitter fundamental
         
     type uint16
         category value
         length 16
-        encoding LE
+        encoding little-endian
         
     type int32
         category value
         length 32
-        encoding SIGNED
+        encoding 2C
         
     type uint32
         category value
         length 32
-        encoding LE
+        encoding little-endian
         
     type int64
         category value
         length 64
-        encoding SIGNED
+        encoding 2C
         
     type uint64
         category value
         length 64
-        encoding LE
+        encoding little-endian
         
     type float32
         category value
         length 32
-        encoding IEEE754
+        encoding iee754
         
     type float64
         category value
         length 64
-        encoding IEEE754
+        encoding iee754
         
     type char
         category value
         length 8
-        encoding NONE
+        encoding native
         
     type wchar
         category value
         length 16
-        encoding NONE
+        encoding native
         
-    type string
+    type String
         category string
-        encoding NONE
+        encoding native
         
     type timestamp
         category value
         length 64
-        encoding NONE
+        encoding native
         description "Unix timestamp in microseconds"
 }
 
@@ -87,25 +87,25 @@ define NetworkTypes {
     type ipv4_address
         category fixed-length
         length 32
-        encoding BE
+        encoding big-endian
         description "IPv4 address in network byte order"
         
     type ipv6_address
         category fixed-length
         length 128
-        encoding BE
+        encoding big-endian
         description "IPv6 address in network byte order"
         
     type mac_address
         category fixed-length
         length 48
-        encoding BE
+        encoding big-endian
         description "MAC address"
         
     type port_number
         category value
         length 16
-        encoding BE
+        encoding big-endian
 }
 
 // ============================================
@@ -114,14 +114,14 @@ define NetworkTypes {
 
 package com.example.base {
     
-    <** Base identifier type **>
+    <** Base identifier **>
     public struct Identifier {
-        type uint64 id
-        type string name
-        type timestamp created_at
+        uint64 id
+        String name
+        timestamp created_at
     }
     
-    <** Base result type **>
+    <** Base result **>
     public enumeration ResultCode {
         SUCCESS = 0,
         ERROR = 1,
@@ -132,10 +132,10 @@ package com.example.base {
     
     <** Version information **>
     public struct Version {
-        type uint8 major
-        type uint8 minor
-        type uint16 patch
-        type string build_info
+        uint8 major
+        uint8 minor
+        uint16 patch
+        String build_info
     }
 }
 
@@ -143,9 +143,9 @@ package com.example.network {
     
     <** Network endpoint **>
     public struct Endpoint {
-        type ipv4_address address
-        type port_number port
-        type string protocol  // "tcp", "udp", etc.
+        ipv4_address address
+        port_number port
+        String protocol
     }
     
     <** Connection state **>
@@ -159,28 +159,28 @@ package com.example.network {
     
     <** Network statistics **>
     public struct NetworkStats {
-        type uint64 bytes_sent
-        type uint64 bytes_received
-        type uint32 packets_sent
-        type uint32 packets_received
-        type uint32 errors
-        type uint32 dropped
-        type timestamp last_activity
+        uint64 bytes_sent
+        uint64 bytes_received
+        uint32 packets_sent
+        uint32 packets_received
+        uint32 errors
+        uint32 dropped
+        timestamp last_activity
     }
     
     <** Connection information **>
-    public struct Connection extends com.example.base.Identifier {
-        type Endpoint local_endpoint
-        type Endpoint remote_endpoint
-        type ConnectionState state
-        type NetworkStats statistics
-        type timestamp established_at
+    public struct Connection extends Identifier {
+        Endpoint local_endpoint
+        Endpoint remote_endpoint
+        ConnectionState state
+        NetworkStats statistics
+        timestamp established_at
     }
 }
 
 package com.example.sensor {
     
-    <** Sensor type enumeration **>
+    <** Sensor types **>
     public enumeration SensorType {
         TEMPERATURE = 0,
         PRESSURE = 1,
@@ -206,67 +206,54 @@ package com.example.sensor {
     
     <** 3D vector **>
     public struct Vector3D {
-        type float64 x
-        type float64 y
-        type float64 z
+        float64 x
+        float64 y
+        float64 z
     }
     
     <** GPS coordinates **>
     public struct GPSLocation {
-        type float64 latitude
-        type float64 longitude
-        type float64 altitude
-        type float32 accuracy
-        type uint8 satellites
+        float64 latitude
+        float64 longitude
+        float64 altitude
+        float32 accuracy
+        uint8 satellites
     }
     
     <** Generic sensor reading **>
-    public struct SensorReading extends com.example.base.Identifier {
-        type SensorType sensor_type
-        type SensorStatus status
-        type float64[10] values  // Up to 10 measurement values
-        type string unit
-        type timestamp reading_time
-        type uint32 sample_rate_hz
+    public struct SensorReading extends Identifier {
+        SensorType sensor_type
+        SensorStatus status
+        float64[10] values
+        String unitName
+        timestamp reading_time
+        uint32 sample_rate_hz
     }
     
-    <** IMU (Inertial Measurement Unit) data **>
+    <** IMU data **>
     public struct IMUData {
-        type Vector3D acceleration
-        type Vector3D gyroscope
-        type Vector3D magnetometer
-        type float32 temperature
-        type timestamp timestamp
+        Vector3D acceleration
+        Vector3D gyroscope
+        Vector3D magnetometer
+        float32 temperature
+        timestamp timestamp
     }
     
-    <** Complete sensor package **>
+    <** Sensor data container **>
     public struct SensorPackage {
-        <** Device identification **>
-        type string device_id
-        
-        <** Hardware version **>
-        type com.example.base.Version hardware_version
-        
-        <** Firmware version **>
-        type com.example.base.Version firmware_version
-        
-        <** Array of sensor readings **>
-        type SensorReading[32] readings
-        
-        <** IMU data if available **>
-        type IMUData imu_data
-        
-        <** GPS location if available **>
-        type GPSLocation location
-        
-        <** Package timestamp **>
-        type timestamp package_time
+        String device_id
+        Version hardware_version
+        Version firmware_version
+        SensorReading[32] readings
+        IMUData imu_data
+        GPSLocation location
+        timestamp package_time
     }
 }
 
 package com.example.vehicle {
     
-    <** Vehicle type **>
+    <** Vehicle types **>
     public enumeration VehicleType {
         UNKNOWN = 0,
         CAR = 1,
@@ -293,38 +280,38 @@ package com.example.vehicle {
     
     <** Battery information **>
     public struct BatteryInfo {
-        type float32 voltage
-        type float32 current
-        type float32 temperature
-        type uint8 state_of_charge  // Percentage
-        type uint8 state_of_health  // Percentage
-        type uint32 cycles
-        type bool is_charging
+        float32 voltage
+        float32 current
+        float32 temperature
+        uint8 state_of_charge
+        uint8 state_of_health
+        uint32 cycles
+        Bool is_charging
     }
     
     <** Motor information **>
     public struct MotorInfo {
-        type uint32 rpm
-        type float32 torque
-        type float32 power
-        type float32 temperature
-        type float32 efficiency
+        uint32 rpm
+        float32 torque
+        float32 power
+        float32 temperature
+        float32 efficiency
     }
     
     <** Vehicle telemetry **>
-    public struct VehicleTelemetry extends com.example.base.Identifier {
-        type VehicleType vehicle_type
-        type string vin  // Vehicle Identification Number
-        type com.example.sensor.GPSLocation location
-        type float32 speed_kmh
-        type float32 heading_degrees
-        type DriveMode drive_mode
-        type MotorInfo motor
-        type BatteryInfo battery
-        type float32[4] tire_pressure  // FL, FR, RL, RR
-        type float32 odometer_km
-        type timestamp last_service
-        type bool[8] warning_lights  // Various warning indicators
+    public struct VehicleTelemetry extends Identifier {
+        VehicleType vehicle_type
+        String vin
+        GPSLocation location
+        float32 speed_kmh
+        float32 heading_degrees
+        DriveMode drive_mode
+        MotorInfo motor
+        BatteryInfo battery
+        float32[4] tire_pressure
+        float32 odometer_km
+        timestamp last_service
+        Bool[8] warning_lights
     }
 }
 
@@ -334,29 +321,29 @@ package com.example.vehicle {
 
 <** Application configuration **>
 public struct ApplicationConfig {
-    type string app_name
-    type com.example.base.Version version
-    type string environment  // "dev", "test", "prod"
-    type uint32 max_connections
-    type uint32 timeout_seconds
-    type bool enable_logging
-    type string log_level  // "debug", "info", "warn", "error"
-    type string[10] feature_flags
+    String app_name
+    Version version
+    String environment
+    uint32 max_connections
+    uint32 timeout_seconds
+    Bool enable_logging
+    String log_level
+    String[10] feature_flags
 }
 
 <** User profile **>
-public struct UserProfile extends com.example.base.Identifier {
-    type string username
-    type string email
-    type string full_name
-    type timestamp registration_date
-    type timestamp last_login
-    type bool is_active
-    type string[5] roles
-    type uint32 login_count
+public struct UserProfile extends Identifier {
+    String username
+    String email
+    String full_name
+    timestamp registration_date
+    timestamp last_login
+    Bool is_active
+    String[5] roles
+    uint32 login_count
 }
 
-<** Log level enumeration **>
+<** Log level **>
 public enumeration LogLevel {
     TRACE = 0,
     DEBUG = 1,
@@ -369,56 +356,56 @@ public enumeration LogLevel {
 
 <** Log entry **>
 public struct LogEntry {
-    type timestamp timestamp
-    type LogLevel level
-    type string source
-    type string message
-    type string[10] tags
-    type string context_json  // JSON string with additional context
+    timestamp timestamp
+    LogLevel level
+    String source
+    String message
+    String[10] tags
+    String context_json
 }
 
 // ============================================
 // 4. Array Types
 // ============================================
 
-<** Array of sensor readings **>
-public array SensorReadingArray of com.example.sensor.SensorReading
+<** Sensor reading collection **>
+public array SensorReadingArray of SensorReading
 
-<** Array of log entries **>
+<** Log buffer **>
 public array LogBuffer of LogEntry
 
-<** Array of connections **>
-public array ConnectionPool of com.example.network.Connection
+<** Connection pool **>
+public array ConnectionPool of Connection
 
-<** Array of telemetry data **>
-public array TelemetryHistory of com.example.vehicle.VehicleTelemetry
+<** Telemetry history **>
+public array TelemetryHistory of VehicleTelemetry
 
 // ============================================
 // 5. Type Aliases (Typedefs)
 // ============================================
 
-<** UUID type (36 character string) **>
-public typedef UUID is string { len 36 }
+<** UUID **>
+public typedef UUID is String { len 36 }
 
-<** Session token (256-bit) **>
-public typedef SessionToken is string { len 64 }
+<** Session token **>
+public typedef SessionToken is String { len 64 }
 
-<** Hash value (SHA-256) **>
-public typedef SHA256Hash is string { len 64 }
+<** Hash **>
+public typedef SHA256Hash is String { len 64 }
 
 <** File path **>
-public typedef FilePath is string { len 260 }
+public typedef FilePath is String { len 260 }
 
 <** URL **>
-public typedef URL is string { len 2048 }
+public typedef URL is String { len 2048 }
 
 <** JSON data **>
-public typedef JSONData is string
+public typedef JSONData is String
 
 <** Binary data **>
-public typedef BinaryBlob is string  // Base64 encoded
+public typedef BinaryBlob is String
 
-<** Percentage (0-100) **>
+<** Percentage **>
 public typedef Percentage is uint8 { len 7 }
 
 <** Temperature in Celsius **>
@@ -433,67 +420,50 @@ public typedef DistanceMeters is float64
 
 <** Complete system state **>
 public struct SystemState {
-    <** System identification **>
-    type UUID system_id
-    
-    <** Application configuration **>
-    type ApplicationConfig config
-    
-    <** Active users **>
-    type UserProfile[100] active_users
-    
-    <** Network connections **>
-    type ConnectionPool connections
-    
-    <** Sensor data **>
-    type com.example.sensor.SensorPackage[10] sensor_packages
-    
-    <** Vehicle telemetry **>
-    type TelemetryHistory vehicle_telemetry
-    
-    <** Recent logs **>
-    type LogBuffer recent_logs
-    
-    <** System health metrics **>
-    type float32 cpu_usage
-    type float32 memory_usage
-    type float32 disk_usage
-    type uint64 uptime_seconds
-    
-    <** Last update timestamp **>
-    type timestamp last_update
+    UUID system_id
+    ApplicationConfig config
+    UserProfile[100] active_users
+    ConnectionPool connections
+    SensorPackage[10] sensor_packages
+    TelemetryHistory vehicle_telemetry
+    LogBuffer recent_logs
+    float32 cpu_usage
+    float32 memory_usage
+    float32 disk_usage
+    uint64 uptime_seconds
+    timestamp last_update
 }
 
 // ============================================
 // 7. Test Edge Cases
 // ============================================
 
-<** Empty struct (valid but unusual) **>
+<** Empty container **>
 public struct EmptyStruct {
 }
 
-<** Single field struct **>
+<** Single field **>
 public struct SingleField {
-    type uint32 value
+    uint32 val
 }
 
-<** Struct with all array fields **>
+<** All arrays **>
 public struct ArrayStruct {
-    type uint8[256] buffer
-    type float32[3] coordinates
-    type bool[32] flags
-    type string[10] names
+    uint8[256] buffer
+    float32[3] coordinates
+    Bool[32] flags
+    String[10] names
 }
 
-<** Deeply nested type references **>
+<** Deeply nested **>
 public struct DeeplyNested {
-    type com.example.vehicle.VehicleTelemetry vehicle
-    type com.example.sensor.SensorPackage sensors
-    type com.example.network.Connection network
-    type com.example.base.Version version
+    VehicleTelemetry vehicle
+    SensorPackage sensors
+    Connection network
+    Version version
 }
 
-<** Maximum enum values **>
+<** Maximum values **>
 public enumeration LargeEnum {
     VALUE_0 = 0,
     VALUE_1 = 1,

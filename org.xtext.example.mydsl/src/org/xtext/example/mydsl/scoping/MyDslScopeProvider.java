@@ -73,8 +73,11 @@ public class MyDslScopeProvider extends AbstractMyDslScopeProvider {
         for (PrimitiveDataTypes primitives : model.getPrimitiveDefinitions()) {
             if (primitives.getDataType() != null) {
                 for (FBasicTypeId basicType : primitives.getDataType()) {
-                    QualifiedName qn = QualifiedName.create(basicType.getName());
-                    descriptions.add(EObjectDescription.create(qn, basicType));
+                    String name = basicType.getName();
+                    if (name != null && !name.isEmpty()) {
+                        QualifiedName qn = QualifiedName.create(name);
+                        descriptions.add(EObjectDescription.create(qn, basicType));
+                    }
                 }
             }
         }
@@ -83,7 +86,7 @@ public class MyDslScopeProvider extends AbstractMyDslScopeProvider {
         if (model.getTypes() != null) {
             for (FType type : model.getTypes()) {
                 String name = getTypeName(type);
-                if (name != null) {
+                if (name != null && !name.isEmpty()) {
                     QualifiedName qn = QualifiedName.create(name);
                     descriptions.add(EObjectDescription.create(qn, type));
                 }
@@ -92,27 +95,27 @@ public class MyDslScopeProvider extends AbstractMyDslScopeProvider {
         
         // Add all FType instances from packages with both simple and qualified names
         for (Package pkg : model.getPackages()) {
-            if (pkg.getTypes() != null) {
+            if (pkg.getName() != null && !pkg.getName().isEmpty() && pkg.getTypes() != null) {
                 for (FType type : pkg.getTypes()) {
                     String typeName = getTypeName(type);
-                    if (typeName != null) {
+                    if (typeName != null && !typeName.isEmpty()) {
                         // Add with simple name
                         QualifiedName simpleName = QualifiedName.create(typeName);
                         descriptions.add(EObjectDescription.create(simpleName, type));
                         
                         // Add with fully qualified name (package.type)
-                        QualifiedName qualifiedName = QualifiedName.create(pkg.getName(), typeName);
-                        descriptions.add(EObjectDescription.create(qualifiedName, type));
-                        
-                        // Also add with dot-separated package name parts
                         String[] pkgParts = pkg.getName().split("\\.");
                         List<String> segments = new ArrayList<>();
                         for (String part : pkgParts) {
-                            segments.add(part);
+                            if (part != null && !part.isEmpty()) {
+                                segments.add(part);
+                            }
                         }
-                        segments.add(typeName);
-                        QualifiedName fqn = QualifiedName.create(segments);
-                        descriptions.add(EObjectDescription.create(fqn, type));
+                        if (!segments.isEmpty()) {
+                            segments.add(typeName);
+                            QualifiedName fqn = QualifiedName.create(segments);
+                            descriptions.add(EObjectDescription.create(fqn, type));
+                        }
                     }
                 }
             }
@@ -142,9 +145,11 @@ public class MyDslScopeProvider extends AbstractMyDslScopeProvider {
         
         // Also collect from packages
         for (Package pkg : model.getPackages()) {
-            for (FType type : pkg.getTypes()) {
-                if (type instanceof FStructType && type != context) {
-                    structs.add((FStructType) type);
+            if (pkg.getTypes() != null) {
+                for (FType type : pkg.getTypes()) {
+                    if (type instanceof FStructType && type != context) {
+                        structs.add((FStructType) type);
+                    }
                 }
             }
         }
@@ -172,9 +177,11 @@ public class MyDslScopeProvider extends AbstractMyDslScopeProvider {
         
         // Also collect from packages
         for (Package pkg : model.getPackages()) {
-            for (FType type : pkg.getTypes()) {
-                if (type instanceof FEnumerationType && type != context) {
-                    enums.add((FEnumerationType) type);
+            if (pkg.getTypes() != null) {
+                for (FType type : pkg.getTypes()) {
+                    if (type instanceof FEnumerationType && type != context) {
+                        enums.add((FEnumerationType) type);
+                    }
                 }
             }
         }
