@@ -1,0 +1,2 @@
+{{COMMENT}}
+using {{TYPEDEF_NAME}} = {{ACTUAL_TYPE}};

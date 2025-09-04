@@ -1,0 +1,18 @@
+{{COMMENT}}
+struct {{STRUCT_NAME}}{{BASE_CLASS}} {
+{{FIELDS}}
+
+    // Default constructor
+    {{STRUCT_NAME}}() = default;
+    
+    // Destructor
+    ~{{STRUCT_NAME}}() = default;
+    
+    // Copy constructor and assignment
+    {{STRUCT_NAME}}(const {{STRUCT_NAME}}&) = default;
+    {{STRUCT_NAME}}& operator=(const {{STRUCT_NAME}}&) = default;
+    
+    // Move constructor and assignment
+    {{STRUCT_NAME}}({{STRUCT_NAME}}&&) = default;
+    {{STRUCT_NAME}}& operator=({{STRUCT_NAME}}&&) = default;
+};

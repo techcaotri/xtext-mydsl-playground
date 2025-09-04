@@ -1,0 +1,2 @@
+{{COMMENT}}
+using {{ARRAY_NAME}} = std::vector<{{ELEMENT_TYPE}}>;

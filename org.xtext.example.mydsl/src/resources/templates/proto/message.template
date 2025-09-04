@@ -1,0 +1,4 @@
+{{COMMENT}}
+message {{MESSAGE_NAME}} {
+{{FIELDS}}
+}

@@ -1,0 +1,230 @@
+grammar org.xtext.example.mydsl.MyDsl with org.eclipse.xtext.common.Terminals
+
+import "http://www.eclipse.org/emf/2002/Ecore" as ecore
+generate myDsl "http://www.xtext.org/example/mydsl/MyDsl"
+
+// Root model - contains PrimitiveDataTypes definitions and types
+Model:
+    (primitiveDefinitions+=PrimitiveDataTypes)*
+    (packages+=Package)*
+    (types+=FType)*
+;
+
+// Package definition
+Package:
+    'package' name=FQN '{'
+        (types+=FType)*
+    '}'
+;
+
+FQN returns ecore::EString:
+    ID('.' ID)*
+;
+
+// Emitter enumeration
+enum Emitter:
+    UNDEFINED='UNDEFINED' |
+    RTE='rte' |
+    ARA='ara' |
+    FUNDAMENTAL='fundamental'
+;
+
+// Category enumeration
+enum Category:
+    UNDEFINED='UNDEFINED' |
+    STRING='string' |
+    VALUE='value' |
+    FIXED_LENGTH='fixed-length'
+;
+
+// Encoding enumeration
+enum Encoding:
+    UNDEFINED='UNDEFINED' |
+    NONE='native' |
+    BOOLEAN='bool' |
+    IEEE754='iee754' |
+    SIGNED='2C' |
+    LE='little-endian' |
+    BE='big-endian'
+;
+
+// Basic type identifier - Fixed to avoid ambiguity
+FBasicTypeId:
+    'type' name=ID
+    (
+        ('description' description=STRING) |
+        ('namespace' ns=[Package|FQN]) |
+        ('header' headed=STRING) |
+        ('emitter' emitter=Emitter) |
+        ('category' category=Category) |
+        ('length' len=INT) |
+        ('encoding' encoding=Encoding)
+    )*
+;
+
+// Variant identifier
+VariantId:
+    'variant' name=[Variant|FQN]
+;
+
+// Primitive data types definition
+PrimitiveDataTypes:
+    'define' name=ID '{' dataType+=FBasicTypeId* '}'
+;
+
+// Annotation block - Simplified
+FAnnotationBlock returns FAnnotationBlock:
+    {FAnnotationBlock}
+    '<**' elements+=FAnnotation '**>';
+
+// Single annotation - Using ANY_OTHER as workaround
+FAnnotation returns FAnnotation:
+    rawText=AnnotationText;
+
+// Annotation text - collect any text until **>
+AnnotationText returns ecore::EString:
+    (ID | STRING | INT | WS | '=' | ',' | '.' | '-' | '+' | '(' | ')' | '[' | ']' | '{' | '}' | '/' | ':' | ';' | '!' | '?' | '@' | '#' | '$' | '%' | '^' | '&' | '_' | '|' | '~' | '`' | '\'' | '"' | '<' | '>' | ANY_OTHER)+
+;
+
+// Main type definitions
+FType returns FType:
+    FArrayType |
+    FEnumerationType |
+    FStructType |
+    FTypeDef
+;
+
+// Type references
+ReferredType returns ReferredType:
+    FBasicTypeId | FType
+;
+
+// Type reference with optional modifiers
+FTypeRef returns FTypeRef:
+    predefined=[ReferredType|FQN]
+    // Optional modifiers for basic types only
+    ('{' 
+        ('len' bitLen=INT)? 
+        ('unit' unit=FUnitID)? 
+        ('compuMethod' compuMethod=[CompuMethod])? 
+        ('init' value=SimplePrimaryExpression)? 
+    '}')?
+;
+
+// Array type definition
+FArrayType returns FArrayType:
+    {FArrayType}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'array' name=ID 'of' elementType=FTypeRef;
+
+// Typedef - leads to APPLICATION-PRIMITIVE-DATA-TYPE
+FTypeDef returns FTypeDef:
+    {FTypeDef}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'typedef' name=ID 'is' actualType=FTypeRef
+;
+
+// Struct type definition
+FStructType returns FStructType:
+    {FStructType}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'struct' name=ID
+    ('extends' base=[FStructType|FQN])?
+    '{'
+        (elements+=FField)*
+    '}';
+
+// Enumerator definition
+FEnumerator returns FEnumerator:
+    {FEnumerator}
+    (comment=FAnnotationBlock)?
+    name=ID ('=' value=SimplePrimaryExpression)?
+;
+
+// Enumeration type definition
+FEnumerationType returns FEnumerationType:
+    {FEnumerationType}
+    (comment=FAnnotationBlock)?
+    (public?='public')? 'enumeration' name=ID
+    ('extends' base=[FEnumerationType|FQN])?
+    '{'
+        (enumerators+=FEnumerator (','? enumerators+=FEnumerator)*)?
+    '}';
+
+// Enumeration body (as per original DataType.xtext) - for inline/nested use
+FEnumerationTypeBody returns FEnumerationType:
+    {FEnumerationType}
+    ('extends' base=[FEnumerationType|FQN])?
+    '{'
+        (enumerators+=FEnumerator (','? enumerators+=FEnumerator)*)?
+    '}';
+
+// Field definition in struct (as per original DataType.xtext)
+FField:
+    (comment=FAnnotationBlock)?
+    type=FTypeRef (array?='[' size=INT ']')? name=ID;
+
+// Variant definition (for future use)
+Variant:
+    'variant' name=ID '{'
+        // variant content
+    '}'
+;
+
+// CompuMethod (for value computation/transformation)
+CompuMethod:
+    'compumethod' name=ID '{'
+        // computation method details
+    '}'
+;
+
+// Unit identifier
+FUnitID returns ecore::EString:
+    ID | STRING
+;
+
+// Simple primary expression (only literals and identifiers, no complex expressions)
+SimplePrimaryExpression returns Expression:
+    LiteralExpression | IdentifierExpression
+;
+
+// Base Expression type
+Expression:
+    LiteralExpression | IdentifierExpression
+;
+
+// Literal expression
+LiteralExpression:
+    value=Literal
+;
+
+// Identifier expression  
+IdentifierExpression:
+    id=ID
+;
+
+// Literals
+Literal:
+    IntLiteral | StringLiteral | BooleanLiteral | FloatLiteral
+;
+
+IntLiteral:
+    value=INT
+;
+
+StringLiteral:
+    value=STRING
+;
+
+BooleanLiteral:
+    value=('true' | 'false')
+;
+
+FloatLiteral:
+    value=FloatNumber
+;
+
+// Use a datatype rule instead of terminal for float
+FloatNumber returns ecore::EString:
+    INT '.' INT (('e'|'E') ('+'|'-')? INT)?
+;

@@ -1,0 +1,19 @@
+Manifest-Version: 1.0
+Automatic-Module-Name: org.xtext.example.mydsl.ui
+Bundle-ManifestVersion: 2
+Bundle-Name: org.xtext.example.mydsl.ui
+Bundle-Vendor: My Company
+Bundle-Version: 1.0.0.202509040158
+Bundle-SymbolicName: org.xtext.example.mydsl.ui; singleton:=true
+Bundle-ActivationPolicy: lazy
+Require-Bundle: org.xtext.example.mydsl,org.xtext.example.mydsl.ide,org.
+ eclipse.xtext.ui,org.eclipse.xtext.ui.shared,org.eclipse.xtext.ui.codet
+ emplates.ui,org.eclipse.ui.editors;bundle-version="3.14.300",org.eclips
+ e.ui.ide;bundle-version="3.18.500",org.eclipse.ui,org.eclipse.compare,o
+ rg.eclipse.xtext.builder
+Import-Package: org.apache.log4j
+Export-Package: org.xtext.example.mydsl.ui.internal,org.xtext.example.my
+ dsl.ui.contentassist,org.xtext.example.mydsl.ui.quickfix
+Bundle-Activator: org.xtext.example.mydsl.ui.internal.MydslActivator
+Require-Capability: osgi.ee;filter:="(&(osgi.ee=JavaSE)(version=17))"
+

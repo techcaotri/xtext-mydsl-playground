@@ -1,0 +1,129 @@
+// DataType DSL Example
+// This file demonstrates the syntax from DataType.xtext
+
+// Define primitive types
+define CommonTypes {
+    type uint8
+        category value
+        length 8
+        encoding native
+    
+    type uint16
+        category value
+        length 16
+        encoding little-endian
+    
+    type uint32
+        category value
+        length 32
+        encoding little-endian
+    
+    type float32
+        category value
+        length 32
+        encoding iee754
+    
+    type String
+        category string
+    
+    type timestamp
+        category value
+        length 64
+        encoding native
+}
+
+// Package for vehicle data types
+package vehicle.data {
+    
+    <** Vehicle speed information **>
+    public struct Speed {
+        uint16 speedValue
+        uint8 speedUnit  // 0=km/h, 1=mph
+        timestamp measured_at
+    }
+    
+    <** GPS Position **>
+    public struct Position {
+        float32 latitude
+        float32 longitude
+        float32 altitude
+        uint8 satellites
+        timestamp fix_time
+    }
+    
+    <** Vehicle status enum **>
+    public enumeration VehicleStatus {
+        UNKNOWN = 0,
+        PARKED = 1,
+        IDLE = 2,
+        MOVING = 3,
+        CHARGING = 4
+    }
+    
+    <** Complete vehicle data **>
+    public struct VehicleData extends Position {
+        String vehicle_id
+        Speed current_speed
+        VehicleStatus status
+        uint8[4] tire_pressure  // Array of 4 tire pressures  
+        float32 battery_level
+        timestamp last_update
+    }
+}
+
+// Package for sensor data
+package sensor.data {
+    
+    <** Temperature sensor reading **>
+    public struct Temperature {
+        float32 tempValue
+        uint8 tempUnit  // 0=Celsius, 1=Fahrenheit
+        String sensor_id
+        timestamp reading_time
+    }
+    
+    <** Sensor types **>
+    public enumeration SensorType {
+        TEMPERATURE = 0,
+        PRESSURE = 1,
+        HUMIDITY = 2,
+        MOTION = 3,
+        LIGHT = 4
+    }
+    
+    <** Generic sensor data **>
+    public struct SensorReading {
+        String sensor_id
+        SensorType sensor_type
+        float32 sensorValue
+        String unitName
+        timestamp timestamp
+    }
+}
+
+// Top-level types (outside packages)
+
+<** System configuration **>
+public struct SystemConfig {
+    String system_id
+    uint32 version
+    String desc  // Changed from 'description' which is a keyword
+    timestamp created_at
+    timestamp modified_at
+}
+
+<** Error codes **>
+public enumeration ErrorCode {
+    SUCCESS = 0,
+    INVALID_PARAMETER = 1,
+    TIMEOUT = 2,
+    CONNECTION_FAILED = 3,
+    PERMISSION_DENIED = 4,
+    RESOURCE_NOT_FOUND = 5
+}
+
+<** Array for batch data **>
+public array SensorReadings of sensor.data.SensorReading
+
+<** UUID alias **>
+public typedef UniqueId is String { len 36 }  // UUID string

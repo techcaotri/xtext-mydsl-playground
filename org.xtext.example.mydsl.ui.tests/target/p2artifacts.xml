@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<?artifactRepository version='1.1.0'?>
+<artifacts size='1'>
+  <artifact classifier='osgi.bundle' id='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509040158'>
+    <properties size='9'>
+      <property name='artifact.size' value='4108'/>
+      <property name='download.size' value='4108'/>
+      <property name='download.checksum.sha-512' value='f08cc6705dc0f2aee0c4e028e9a8b76bb52c37a7d59752300325ee8c57a1cf9395402cdabda30a9a37e481228d35c2d30f1dcf2db3871c65283cd448af3944b8'/>
+      <property name='download.checksum.sha-1' value='eab66da1d37476af53c5a802148ba3de365e3da0'/>
+      <property name='download.checksum.sha-256' value='e0183c6c95f469f6b11aeeba0955bc46c41b587f61f0b8b37c1cf7bf20ed2cdc'/>
+      <property name='maven-groupId' value='org.xtext.example.mydsl'/>
+      <property name='maven-artifactId' value='org.xtext.example.mydsl.ui.tests'/>
+      <property name='maven-version' value='1.0.0-SNAPSHOT'/>
+      <property name='maven-type' value='eclipse-test-plugin'/>
+    </properties>
+  </artifact>
+</artifacts>

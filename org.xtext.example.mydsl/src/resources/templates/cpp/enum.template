@@ -1,0 +1,4 @@
+{{COMMENT}}
+enum class {{ENUM_NAME}}{{BASE_TYPE}} {
+{{ENUMERATORS}}
+};

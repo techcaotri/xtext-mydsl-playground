@@ -1,0 +1,58 @@
+model TestModel {
+    
+    entity Person {
+        namespace: "com.example"
+        description: "A person entity"
+        
+        attributes {
+            private string name
+            private int age
+            public string email {
+                get: true
+                set: true
+                description: "Email address"
+            }
+        }
+        
+        methods {
+            public string getName() const
+            public void setName(string& value)
+            public int getAge() const noexcept
+            public virtual void display() const
+        }
+        
+        constructors {
+            public Person()
+            public explicit Person(string& name, int age)
+        }
+        
+        options {
+            copy_semantics: true
+            move_semantics: true
+            serialization: true
+            operators: true
+        }
+    }
+    
+    entity Employee extends Person {
+        namespace: "com.example"
+        description: "An employee entity"
+        
+        attributes {
+            private string employeeId
+            private double salary = 0.0
+        }
+        
+        methods {
+            public string getEmployeeId() const
+            public void setSalary(double value)
+            public void display() const
+        }
+    }
+    
+    enum Status {
+        ACTIVE = 1,
+        INACTIVE = 2,
+        PENDING = 3
+    }
+}

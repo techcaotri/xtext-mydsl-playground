@@ -1,0 +1,4 @@
+{{COMMENT}}
+enum {{ENUM_NAME}} {
+{{ENUMERATORS}}
+}

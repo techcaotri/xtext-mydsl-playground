@@ -1,0 +1,22 @@
+#ifndef TYPES_H
+#define TYPES_H
+
+/**
+ * @file Types.h
+ * @brief Common type definitions for DataType DSL
+ * 
+ * Generated: {{TIMESTAMP}}
+ * 
+ * This file includes all generated type headers
+ */
+
+#include <cstdint>
+#include <string>
+#include <vector>
+#include <array>
+#include <memory>
+
+// Include all generated type headers
+{{TYPE_INCLUDES}}
+
+#endif // TYPES_H
