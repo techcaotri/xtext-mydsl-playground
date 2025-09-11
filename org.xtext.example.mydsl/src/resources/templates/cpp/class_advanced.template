@@ -1,0 +1,24 @@
+{{!-- Advanced C++ class template with Handlebars features --}}
+{{#if COMMENT}}
+/**
+ * {{COMMENT}}
+ */
+{{/if}}
+class {{CLASS_NAME}}{{#if BASE_CLASSES}} : {{#each BASE_CLASSES}}public {{this}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}} {
+{{#if VISIBILITY}}{{VISIBILITY}}:{{else}}public:{{/if}}
+    {{!-- Constructor declarations --}}
+    {{#each CONSTRUCTORS}}
+    {{this}};
+    {{/each}}
+    
+    {{!-- Member variables --}}
+    {{#each MEMBERS}}
+    {{#if this.comment}}// {{this.comment}}{{/if}}
+    {{this.type}} {{this.name}}{{#if this.initializer}} = {{this.initializer}}{{/if}};
+    {{/each}}
+    
+    {{!-- Methods --}}
+    {{#each METHODS}}
+    {{#if this.virtual}}virtual {{/if}}{{this.returnType}} {{this.name}}({{#each this.params}}{{this.type}} {{this.name}}{{#unless @last}}, {{/unless}}{{/each}}){{#if this.const}} const{{/if}}{{#if this.override}} override{{/if}};
+    {{/each}}
+};

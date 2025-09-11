@@ -36,7 +36,8 @@ import org.eclipse.xtext.generator.IFileSystemAccess
 @Singleton
 class ProtobufGenerator {
     
-    @Inject TemplateLoader templateLoader
+//    @Inject TemplateLoader templateLoader
+    @Inject HandlebarsTemplateLoader templateLoader  // Changed from TemplateLoader
     
     Map<String, Integer> fieldNumberCounter
     Set<String> imports
@@ -53,7 +54,8 @@ class ProtobufGenerator {
         imports = new HashSet()
         
         if (templateLoader === null) {
-            templateLoader = new TemplateLoader()
+//            templateLoader = new TemplateLoader()
+            templateLoader = new HandlebarsTemplateLoader()  // Changed to HandlebarsTemplateLoader
         }
         templateLoader.setTemplateBasePath("templates/")
         

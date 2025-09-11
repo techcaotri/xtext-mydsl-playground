@@ -15,7 +15,7 @@ class MyDslGenerator extends AbstractGenerator {
 
     @Inject DataTypeGenerator dataTypeGenerator
     @Inject ProtobufGenerator protobufGenerator
-    @Inject TemplateLoader templateLoader
+    @Inject HandlebarsTemplateLoader templateLoader  // Changed from TemplateLoader
     
     // Configuration flags
     var boolean generateCpp = true
@@ -27,8 +27,9 @@ class MyDslGenerator extends AbstractGenerator {
         
         // Initialize template loader
         if (templateLoader !== null) {
-            templateLoader.setTemplateBasePath("/templates/")
+            templateLoader.setTemplateBasePath("/templates/")  // Note the leading slash
             templateLoader.setCacheEnabled(true)
+            templateLoader.loadCommonPartials()  // Load common partials
         }
         
         // Generate C++ code if enabled

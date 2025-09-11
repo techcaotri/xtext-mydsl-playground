@@ -19,7 +19,8 @@ import org.eclipse.emf.ecore.EObject
 @Singleton
 class DataTypeGenerator {
 
-	@Inject TemplateLoader templateLoader
+//	@Inject TemplateLoader templateLoader
+	@Inject HandlebarsTemplateLoader templateLoader
 
 	static val String OUTPUT_PATH = "generated/"
 
@@ -29,14 +30,17 @@ class DataTypeGenerator {
 	def void generate(Model model, IFileSystemAccess2 fsa) {
 		// Initialize template loader
 		if (templateLoader === null) {
-			templateLoader = new TemplateLoader()
+//			templateLoader = new TemplateLoader()
+			templateLoader = new HandlebarsTemplateLoader()
 		}
 		templateLoader.setTemplateBasePath("templates/")
 
+		// Specific loading for HandlebarsTemplateLoader
+		templateLoader.loadCommonPartials() // Load reusable partials
 		try {
 			// Generate types header file
 			generateTypesHeader(model, fsa)
-	
+
 			// Generate individual headers for each type
 			for (type : model.types) {
 				try {
@@ -46,19 +50,20 @@ class DataTypeGenerator {
 					e.printStackTrace()
 				}
 			}
-	
+
 			// Generate headers for types in packages
 			for (pkg : model.packages) {
 				for (type : pkg.types) {
 					try {
 						generateTypeHeader(type, model, fsa, pkg)
 					} catch (Exception e) {
-						System.err.println("Warning: Failed to generate header for type in package " + pkg.name + ": " + getTypeName(type))
+						System.err.println("Warning: Failed to generate header for type in package " + pkg.name + ": " +
+							getTypeName(type))
 						e.printStackTrace()
 					}
 				}
 			}
-	
+
 			// Generate CMakeLists.txt
 			generateCMakeFile(model, fsa)
 		} catch (Exception e) {
@@ -209,14 +214,14 @@ class DataTypeGenerator {
 	 */
 	def String generateFieldWithTemplate(FField field, Model model) {
 		// Add null safety check
-		val fieldName = if (field.name !== null) field.name else "field"
-		
+		val fieldName = if(field.name !== null) field.name else "field"
+
 		// Get the type, handling potential null/unresolved references
 		var fieldType = "uint32_t" // Better default than void
 		if (field.type !== null) {
 			try {
 				fieldType = mapTypeRef(field.type, model)
-				
+
 				// Double-check we didn't get void or an unmapped type
 				if (fieldType == "void" || fieldType.empty) {
 					// Try to extract type name directly from the field's type node
@@ -248,7 +253,7 @@ class DataTypeGenerator {
 				fieldType = "uint32_t"
 			}
 		}
-		
+
 		val variables = new HashMap<String, String>()
 		variables.put("FIELD_COMMENT", if(field.comment !== null) generateComment(field.comment) else "")
 		variables.put("FIELD_TYPE", fieldType)
@@ -273,29 +278,52 @@ class DataTypeGenerator {
 	 * Generate enum using template
 	 */
 	def String generateEnumWithTemplate(FEnumerationType enumType) {
-		// Generate enumerators
-		val enumerators = new StringBuilder()
-		var first = true
+		// Generate enumerators without any triple quotes or potential encoding
+		val enumeratorsList = new java.util.ArrayList<String>()
+
 		for (enumerator : enumType.enumerators) {
-			if (!first) {
-				enumerators.append(",\n")
-			}
-			enumerators.append("    ")
+			val enumLine = new StringBuilder()
+			enumLine.append("    ")
+
 			if (enumerator.comment !== null) {
-				enumerators.append(generateComment(enumerator.comment)).append("\n    ")
+				enumLine.append(generateComment(enumerator.comment))
+				enumLine.append("\n    ")
 			}
-			enumerators.append(enumerator.name)
+
+			enumLine.append(enumerator.name)
+
 			if (enumerator.value !== null) {
-				enumerators.append(" = ").append(expressionToString(enumerator.value))
+				// Build the equals part character by character to avoid encoding
+				enumLine.append(' ')
+				enumLine.append('=')
+				enumLine.append(' ')
+				enumLine.append(expressionToString(enumerator.value))
 			}
-			first = false
+
+			enumeratorsList.add(enumLine.toString())
 		}
 
+		// Join with comma and newline
+		val enumeratorsStr = String.join(",\n", enumeratorsList)
+
+		// Build variables map
 		val variables = new HashMap<String, String>()
-		variables.put("COMMENT", generateComment(enumType.comment))
+
+		// Handle comment
+		val commentStr = if(enumType.comment !== null) generateComment(enumType.comment) else ""
+		variables.put("COMMENT", commentStr)
+
 		variables.put("ENUM_NAME", enumType.name)
-		variables.put("BASE_TYPE", if(enumType.base !== null) " : " + enumType.base.name else " : int32_t")
-		variables.put("ENUMERATORS", enumerators.toString())
+
+		// Build base type string
+		val baseTypeStr = if (enumType.base !== null) {
+				" : " + enumType.base.name
+			} else {
+				" : int32_t"
+			}
+		variables.put("BASE_TYPE", baseTypeStr)
+
+		variables.put("ENUMERATORS", enumeratorsStr)
 
 		return templateLoader.processTemplate("cpp/enum.template", variables)
 	}
@@ -317,11 +345,10 @@ class DataTypeGenerator {
 	 */
 	def String generateTypeDefWithTemplate(FTypeDef typedef, Model model) {
 		var actualType = "uint32_t" // Default
-		
 		// Get the actual type with proper mapping
 		if (typedef.actualType !== null) {
 			actualType = mapTypeRef(typedef.actualType, model)
-			
+
 			// Special handling for String type
 			if (actualType.equals("String") || actualType.equals("void")) {
 				// Try to extract type name directly
@@ -339,7 +366,7 @@ class DataTypeGenerator {
 				}
 			}
 		}
-		
+
 		val variables = new HashMap<String, String>()
 		variables.put("COMMENT", generateComment(typedef.comment))
 		variables.put("TYPEDEF_NAME", typedef.name)
@@ -372,22 +399,22 @@ class DataTypeGenerator {
 		if (typeRef === null) {
 			return "void"
 		}
-		
+
 		// First, try to get the predefined reference
 		val refType = typeRef.predefined
-		
+
 		if (refType !== null) {
 			// Check if it's a basic type
 			if (refType instanceof FBasicTypeId) {
 				return mapBasicType(refType, typeRef)
 			}
-	
+
 			// Check if it's a defined type
 			if (refType instanceof FType) {
 				return getTypeName(refType)
 			}
 		}
-		
+
 		// If the reference is null or unresolved, extract the type name from the AST
 		// This is needed because cross-references to types in PrimitiveDataTypes aren't being resolved
 		var extractedTypeName = null as String
@@ -403,7 +430,7 @@ class DataTypeGenerator {
 						extractedTypeName = extractedTypeName.substring(0, extractedTypeName.indexOf("{")).trim
 					}
 				}
-				
+
 				// If that didn't work, try leaf nodes
 				if (extractedTypeName === null || extractedTypeName.empty) {
 					// Extract type name from first non-structural leaf node
@@ -413,7 +440,7 @@ class DataTypeGenerator {
 		} catch (Exception e) {
 			// Silent fail - use default
 		}
-		
+
 		// Map the extracted type name
 		if (extractedTypeName !== null && !extractedTypeName.empty) {
 			// Special handling for String type (capital S)
@@ -427,22 +454,22 @@ class DataTypeGenerator {
 		// Last resort: return a default type instead of void to avoid breaking generation
 		return "uint32_t" // Better default than void for fields
 	}
-	
+
 	/**
 	 * Helper method to extract type name from leaf nodes
 	 */
 	def private String extractTypeNameFromLeafNodes(Iterable<ILeafNode> leafNodes) {
 		for (leaf : leafNodes) {
 			val leafText = leaf.text.trim
-			if (!leafText.empty && !leafText.equals("{") && !leafText.equals("}") && 
-				!leafText.equals("len") && !leafText.equals("=")) {
+			if (!leafText.empty && !leafText.equals("{") && !leafText.equals("}") && !leafText.equals("len") &&
+				!leafText.equals("=")) {
 				// Found the type name, return it
 				return leafText
 			}
 		}
 		return null
 	}
-	
+
 	/**
 	 * Get the unresolved type name from a FTypeRef
 	 */
@@ -457,9 +484,9 @@ class DataTypeGenerator {
 					if (grammarElement !== null) {
 						val text = leaf.text.trim
 						// Skip structural tokens
-						if (!text.empty && !text.equals("{") && !text.equals("}") && 
-							!text.equals("=") && !text.equals("len") && !text.equals("unit") &&
-							!text.equals("compuMethod") && !text.equals("init")) {
+						if (!text.empty && !text.equals("{") && !text.equals("}") && !text.equals("=") &&
+							!text.equals("len") && !text.equals("unit") && !text.equals("compuMethod") &&
+							!text.equals("init")) {
 							// This should be the type name
 							return text
 						}
@@ -471,7 +498,7 @@ class DataTypeGenerator {
 		}
 		return null
 	}
-	
+
 	/**
 	 * Get type name from reference
 	 */
@@ -490,7 +517,7 @@ class DataTypeGenerator {
 		}
 		return null
 	}
-	
+
 	/**
 	 * Map basic type by name when reference resolution fails
 	 */
@@ -498,14 +525,14 @@ class DataTypeGenerator {
 		if (typeName === null || typeName.empty) {
 			return "uint32_t"
 		}
-		
+
 		// Don't convert to lowercase - check both exact and lowercase matches
 		// Map based on name
 		switch (typeName) {
 			// Check exact matches first
 			case "String": return "std::string"
 			case "uint8": return "uint8_t"
-			case "uint16": return "uint16_t"  
+			case "uint16": return "uint16_t"
 			case "uint32": return "uint32_t"
 			case "uint64": return "uint64_t"
 			case "int8": return "int8_t"
@@ -528,7 +555,7 @@ class DataTypeGenerator {
 			case "char": return "char"
 			case "wchar": return "wchar_t"
 		}
-		
+
 		// Handle bit length if specified
 		if (typeRef !== null && typeRef.bitLen > 0) {
 			if(typeRef.bitLen <= 8) return "uint8_t"
@@ -536,12 +563,12 @@ class DataTypeGenerator {
 			if(typeRef.bitLen <= 32) return "uint32_t"
 			if(typeRef.bitLen <= 64) return "uint64_t"
 		}
-		
+
 		// If it's a user type (starts with capital), return as-is
 		if (typeName.length > 0 && Character.isUpperCase(typeName.charAt(0))) {
 			return typeName
 		}
-		
+
 		// Try lowercase mapping as fallback
 		val nameLower = typeName.toLowerCase
 		switch (nameLower) {
@@ -568,7 +595,7 @@ class DataTypeGenerator {
 			case "char": return "char"
 			case "wchar": return "wchar_t"
 		}
-		
+
 		return "uint32_t"
 	}
 
@@ -599,7 +626,7 @@ class DataTypeGenerator {
 			case "float32": return "float"
 			case "double": return "double"
 			case "float64": return "double"
-			case "string": return "std::string"  // Handle both "string" and "String"
+			case "string": return "std::string" // Handle both "string" and "String"
 			case "byte": return "uint8_t"
 			case "char": return "char"
 			case "wchar": return "wchar_t"
@@ -653,7 +680,14 @@ class DataTypeGenerator {
 
 	def String literalToString(Literal literal) {
 		switch (literal) {
-			StringLiteral: '''"«literal.value»"'''
+			StringLiteral: {
+				// Use string concatenation instead of triple quotes
+				val sb = new StringBuilder()
+				sb.append('"')
+				sb.append(literal.value)
+				sb.append('"')
+				return sb.toString()
+			}
 			IntLiteral:
 				String.valueOf(literal.value)
 			FloatLiteral:

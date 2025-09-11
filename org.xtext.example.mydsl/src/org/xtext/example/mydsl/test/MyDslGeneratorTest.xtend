@@ -342,6 +342,25 @@ class MyDslGeneratorTest {
 		val statusHeader = getTextFile("DEFAULT_OUTPUTgenerated/include/Status.h")
 		val content = statusHeader.toString
 
+		// Debug output if test fails
+		if (!content.contains("ACTIVE = 0")) {
+			println("  Debug: Generated enum content:")
+			val enumStart = content.indexOf("enum class Status")
+			if (enumStart >= 0) {
+				val enumEnd = content.indexOf("};", enumStart)
+				if (enumEnd > enumStart) {
+					val enumContent = content.substring(enumStart, enumEnd + 2)
+					println(enumContent)
+
+					// Check for HTML entities
+					if (enumContent.contains("&amp;") || enumContent.contains("&#x3D;")) {
+						println("  WARNING: HTML entities found in generated code!")
+						println("  This suggests an issue with Xtend string template processing.")
+					}
+				}
+			}
+		}
+
 		if (!content.contains("enum class Status")) {
 			println("  Error: Should contain enum class Status")
 			return false

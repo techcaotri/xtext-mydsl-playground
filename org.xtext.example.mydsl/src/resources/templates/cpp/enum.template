@@ -1,4 +1,4 @@
-{{COMMENT}}
+{{#if COMMENT}}{{COMMENT}}{{/if}}
 enum class {{ENUM_NAME}}{{BASE_TYPE}} {
 {{ENUMERATORS}}
 };

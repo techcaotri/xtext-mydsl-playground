@@ -37,6 +37,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * Main entry point for the standalone MyDsl generator Uses the unified
@@ -46,7 +47,7 @@ import java.util.Map;
  */
 public class Main {
 	private static final Logger logger = LogManager.getLogger(Main.class);
-	private static final String VERSION = "2.0.0-SNAPSHOT";
+	private static String version;
 
 	private Injector injector;
 	private XtextResourceSet resourceSet;
@@ -54,6 +55,11 @@ public class Main {
 	private MyDslGenerator generator;
 	private IResourceServiceProvider.Registry serviceProviderRegistry;
 	private IEncodingProvider encodingProvider;
+
+	static {
+		// Initialize version on class load
+		version = loadVersion();
+	}
 
 	public static void main(String[] args) {
 		Main main = new Main();
@@ -75,7 +81,7 @@ public class Main {
 
 			// Handle version
 			if (cmd.hasOption("v")) {
-				System.out.println("MyDsl Standalone Generator v" + VERSION);
+				System.out.println("MyDsl Standalone Generator v" + version);
 				return 0;
 			}
 
@@ -198,7 +204,7 @@ public class Main {
 	private void printHelp(Options options) {
 		HelpFormatter formatter = new HelpFormatter();
 		formatter.printHelp(
-				"java -jar org.xtext.example.mydsl.standalone-" + VERSION
+				"java -jar org.xtext.example.mydsl.standalone-" + version
 						+ "-jar-with-dependencies.jar [options] <input.mydsl>",
 				"\nMyDsl Standalone Generator - Generate C++ code and Protobuf from MyDsl files\n\n", options,
 				"\nExamples:\n" + "  Generate C++ code only:\n" + "    java -jar mydsl-standalone.jar model.mydsl\n\n"
@@ -353,5 +359,39 @@ public class Main {
 		System.out.println("  - Arrays: " + arrayCount);
 		System.out.println("  - Typedefs: " + typedefCount);
 		System.out.println("========================================");
+	}
+
+	/**
+	 * Loads version information from version.properties file and appends git hash
+	 * @return formatted version string with git hash suffix
+	 */
+	private static String loadVersion() {
+		Properties props = new Properties();
+		String fallbackVersion = "2.0.0-SNAPSHOT";
+		
+		try {
+			// Load version.properties from classpath
+			java.io.InputStream inputStream = Main.class.getResourceAsStream("/version.properties");
+			if (inputStream != null) {
+				props.load(inputStream);
+				inputStream.close();
+				
+				String baseVersion = props.getProperty("version", fallbackVersion);
+				String gitHash = props.getProperty("git.commit.hash", "unknown");
+				
+				// Append git hash (7 characters) as suffix
+				if (!"unknown".equals(gitHash) && gitHash.length() >= 7) {
+					return baseVersion + "-" + gitHash.substring(0, 7);
+				} else {
+					return baseVersion;
+				}
+			} else {
+				logger.warn("version.properties not found, using fallback version: {}", fallbackVersion);
+				return fallbackVersion;
+			}
+		} catch (Exception e) {
+			logger.warn("Failed to load version information: {}, using fallback: {}", e.getMessage(), fallbackVersion);
+			return fallbackVersion;
+		}
 	}
 }

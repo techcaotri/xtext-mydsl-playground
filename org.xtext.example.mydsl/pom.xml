@@ -17,6 +17,14 @@
 			<!-- Mark as provided since it's bundled in lib folder for Eclipse -->
 			<scope>provided</scope>
 		</dependency>
+		<!-- Add Handlebars.java dependency for Maven builds -->
+		<dependency>
+            <groupId>com.github.jknack</groupId>
+            <artifactId>handlebars</artifactId>
+            <version>4.3.1</version>
+			<!-- Mark as provided since it's bundled in lib folder for Eclipse -->
+			<scope>provided</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -42,6 +50,13 @@
 									<version>3.21.12</version>
 									<outputDirectory>${project.basedir}/lib</outputDirectory>
 									<destFileName>protobuf-java-3.21.12.jar</destFileName>
+								</artifactItem>
+								<artifactItem>
+                  					<groupId>com.github.jknack</groupId>
+                  					<artifactId>handlebars</artifactId>
+                  					<version>4.3.1</version>
+									<outputDirectory>${project.basedir}/lib</outputDirectory>
+									<destFileName>handlebars-4.3.1.jar</destFileName>
 								</artifactItem>
 							</artifactItems>
 						</configuration>
@@ -86,6 +101,12 @@
 						<groupId>com.google.protobuf</groupId>
 						<artifactId>protobuf-java</artifactId>
 						<version>3.21.12</version>
+					</dependency>
+        			<!-- Add Handlebars.java dependency -->
+					<dependency>
+					    <groupId>com.github.jknack</groupId>
+					    <artifactId>handlebars</artifactId>
+					    <version>4.3.1</version>
 					</dependency>
 				</dependencies>
 			</plugin>

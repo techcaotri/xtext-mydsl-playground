@@ -1,6 +1,10 @@
+{{#if_not_empty COMMENT}}
 {{COMMENT}}
+{{/if_not_empty}}
 struct {{STRUCT_NAME}}{{BASE_CLASS}} {
+{{#if FIELDS}}
 {{FIELDS}}
+{{/if}}
 
     // Default constructor
     {{STRUCT_NAME}}() = default;
@@ -12,7 +16,7 @@ struct {{STRUCT_NAME}}{{BASE_CLASS}} {
     {{STRUCT_NAME}}(const {{STRUCT_NAME}}&) = default;
     {{STRUCT_NAME}}& operator=(const {{STRUCT_NAME}}&) = default;
     
-    // Move constructor and assignment
+    // Move constructor and assignment  
     {{STRUCT_NAME}}({{STRUCT_NAME}}&&) = default;
     {{STRUCT_NAME}}& operator=({{STRUCT_NAME}}&&) = default;
 };

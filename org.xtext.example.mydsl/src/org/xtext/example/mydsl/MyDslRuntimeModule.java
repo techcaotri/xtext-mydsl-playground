@@ -6,6 +6,7 @@ import org.xtext.example.mydsl.generator.MyDslGenerator;
 import org.xtext.example.mydsl.generator.DataTypeGenerator;
 import org.xtext.example.mydsl.generator.ProtobufGenerator;
 import org.xtext.example.mydsl.generator.TemplateLoader;
+import org.xtext.example.mydsl.generator.HandlebarsTemplateLoader;
 import org.xtext.example.mydsl.scoping.MyDslScopeProvider;
 import com.google.inject.Binder;
 
@@ -27,6 +28,10 @@ public class MyDslRuntimeModule extends AbstractMyDslRuntimeModule {
     @Override
     public void configure(Binder binder) {
         super.configure(binder);
+        
+       // Bind the HandlebarsTemplateLoader as a singleton
+        binder.bind(org.xtext.example.mydsl.generator.HandlebarsTemplateLoader.class)
+              .asEagerSingleton();
         
         // Bind the TemplateLoader as a singleton
         binder.bind(org.xtext.example.mydsl.generator.TemplateLoader.class)
