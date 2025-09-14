@@ -26,3 +26,7 @@ replay_pid*
 org.xtext.example.mydsl.standalone.txt
 org.xtext.example.mydsl.tests.txt
 org.xtext.example.mydsl.txt
+
+xtend-gen/
+src-gen/
+target/
