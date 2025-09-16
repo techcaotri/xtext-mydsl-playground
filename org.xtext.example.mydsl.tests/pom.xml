@@ -12,94 +12,207 @@
 	<properties>
 		<junit.version>5.10.0</junit.version>
 		<junit.platform.version>1.10.0</junit.platform.version>
+		<jacoco.version>0.8.11</jacoco.version>
+		<surefire.version>3.1.2</surefire.version>
+		<!-- JaCoCo properties -->
+		<jacoco.destFile>${project.build.directory}/jacoco.exec</jacoco.destFile>
+		<sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+		<sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
+		<sonar.jacoco.reportPath>${jacoco.destFile}</sonar.jacoco.reportPath>
 	</properties>
 
 	<build>
 		<plugins>
+			<!-- Xtend Compilation with Debug Info for Coverage -->
 			<plugin>
 				<groupId>org.eclipse.xtend</groupId>
 				<artifactId>xtend-maven-plugin</artifactId>
+				<version>${xtextVersion}</version>
 				<executions>
 					<execution>
 						<goals>
 							<goal>compile</goal>
+							<goal>xtend-install-debug-info</goal>
 							<goal>testCompile</goal>
+							<goal>xtend-test-install-debug-info</goal>
 						</goals>
 						<configuration>
 							<outputDirectory>xtend-gen</outputDirectory>
+							<testOutputDirectory>xtend-gen</testOutputDirectory>
+							<!-- Enable trace for debugging -->
+							<xtendAsPrimaryDebugSource>true</xtendAsPrimaryDebugSource>
+							<hideLocalSyntheticVariables>true</hideLocalSyntheticVariables>
+							<writeTaceFiles>true</writeTaceFiles>
 						</configuration>
 					</execution>
 				</executions>
-				<!-- Add JUnit 5 to Xtend compilation classpath -->
+			</plugin>
+			
+			<!-- JaCoCo Code Coverage for Xtend -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<configuration>
+					<!-- Include Xtend source directories for proper coverage mapping -->
+					<sourceDirectories>
+						<sourceDirectory>${project.basedir}/src</sourceDirectory>
+						<!-- Include xtend-gen for trace mapping -->
+						<sourceDirectory>${project.basedir}/xtend-gen</sourceDirectory>
+					</sourceDirectories>
+					<!-- Exclude generated and test files -->
+					<excludes>
+						<exclude>**/*Test.class</exclude>
+						<exclude>**/*Test$*.class</exclude>
+						<exclude>**/*.xtendbin</exclude>
+						<exclude>**/*._trace</exclude>
+						<exclude>**/*StandaloneSetup.class</exclude>
+						<exclude>**/*InjectorProvider.class</exclude>
+					</excludes>
+				</configuration>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+						<configuration>
+							<destFile>${jacoco.destFile}</destFile>
+							<propertyName>argLine</propertyName>
+							<append>true</append>
+						</configuration>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+						<configuration>
+							<dataFile>${jacoco.destFile}</dataFile>
+							<outputDirectory>${project.reporting.outputDirectory}/jacoco</outputDirectory>
+							<!-- Add source directories for Xtend -->
+							<sourceDirectories>
+								<sourceDirectory>${project.basedir}/src</sourceDirectory>
+								<sourceDirectory>${project.basedir}/xtend-gen</sourceDirectory>
+							</sourceDirectories>
+							<!-- Class directories -->
+							<classDirectories>
+								<classDirectory>${project.build.outputDirectory}</classDirectory>
+							</classDirectories>
+						</configuration>
+					</execution>
+					<execution>
+						<id>jacoco-check</id>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>PACKAGE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>0.50</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- Tycho Surefire Plugin for Eclipse Tests -->
+			<plugin>
+				<groupId>org.eclipse.tycho</groupId>
+				<artifactId>tycho-surefire-plugin</artifactId>
+				<version>${tycho-version}</version>
+				<configuration>
+					<useUIHarness>false</useUIHarness>
+					<useUIThread>false</useUIThread>
+					<failIfNoTests>true</failIfNoTests>
+					<!-- Include all test classes from target/classes since tests are in src/ -->
+					<includes>
+						<include>**/*Test.class</include>
+						<include>**/*Tests.class</include>
+						<include>**/Test*.class</include>
+					</includes>
+					<!-- Exclude runners and helpers -->
+					<excludes>
+						<exclude>**/*Runner.class</exclude>
+						<exclude>**/*Suite.class</exclude>
+					</excludes>
+					<!-- Use the argLine from JaCoCo -->
+					<argLine>${argLine}</argLine>
+					<systemPropertyVariables>
+						<java.awt.headless>true</java.awt.headless>
+					</systemPropertyVariables>
+					<!-- Test report configuration -->
+					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+					<redirectTestOutputToFile>true</redirectTestOutputToFile>
+					<printSummary>true</printSummary>
+				</configuration>
+				<executions>
+					<execution>
+						<id>default-test</id>
+						<phase>test</phase>
+						<goals>
+							<goal>test</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- Alternative: Maven Surefire for non-Eclipse tests -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${surefire.version}</version>
+				<configuration>
+					<skipTests>${skipTests}</skipTests>
+					<testFailureIgnore>false</testFailureIgnore>
+					<argLine>@{argLine} -Xmx1024m</argLine>
+					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Tests.java</include>
+					</includes>
+				</configuration>
 				<dependencies>
 					<dependency>
-						<groupId>org.junit.jupiter</groupId>
-						<artifactId>junit-jupiter-api</artifactId>
-						<version>${junit.version}</version>
-					</dependency>
-					<dependency>
-						<groupId>org.junit.jupiter</groupId>
-						<artifactId>junit-jupiter-engine</artifactId>
-						<version>${junit.version}</version>
+						<groupId>org.junit.platform</groupId>
+						<artifactId>junit-platform-surefire-provider</artifactId>
+						<version>1.3.2</version>
 					</dependency>
 				</dependencies>
 			</plugin>
-			
+
+			<!-- Site Plugin for Reports -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-dependency-plugin</artifactId>
-				<version>3.3.0</version>
+				<artifactId>maven-site-plugin</artifactId>
+				<version>3.12.1</version>
+			</plugin>
+
+			<!-- Surefire Report Plugin -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-report-plugin</artifactId>
+				<version>${surefire.version}</version>
 				<executions>
 					<execution>
-						<id>copy-dependencies</id>
-						<phase>generate-sources</phase>
+						<phase>test</phase>
 						<goals>
-							<goal>copy</goal>
+							<goal>report</goal>
 						</goals>
-						<configuration>
-							<artifactItems>
-								<artifactItem>
-									<groupId>org.junit.jupiter</groupId>
-									<artifactId>junit-jupiter-api</artifactId>
-									<version>${junit.version}</version>
-									<outputDirectory>${project.build.directory}/lib</outputDirectory>
-								</artifactItem>
-								<artifactItem>
-									<groupId>org.junit.jupiter</groupId>
-									<artifactId>junit-jupiter-engine</artifactId>
-									<version>${junit.version}</version>
-									<outputDirectory>${project.build.directory}/lib</outputDirectory>
-								</artifactItem>
-								<artifactItem>
-									<groupId>org.junit.platform</groupId>
-									<artifactId>junit-platform-commons</artifactId>
-									<version>${junit.platform.version}</version>
-									<outputDirectory>${project.build.directory}/lib</outputDirectory>
-								</artifactItem>
-								<artifactItem>
-									<groupId>org.junit.platform</groupId>
-									<artifactId>junit-platform-engine</artifactId>
-									<version>${junit.platform.version}</version>
-									<outputDirectory>${project.build.directory}/lib</outputDirectory>
-								</artifactItem>
-								<artifactItem>
-									<groupId>org.junit.platform</groupId>
-									<artifactId>junit-platform-launcher</artifactId>
-									<version>${junit.platform.version}</version>
-									<outputDirectory>${project.build.directory}/lib</outputDirectory>
-								</artifactItem>
-								<artifactItem>
-									<groupId>org.junit.platform</groupId>
-									<artifactId>junit-platform-console</artifactId>
-									<version>${junit.platform.version}</version>
-									<outputDirectory>${project.build.directory}/lib</outputDirectory>
-								</artifactItem>
-							</artifactItems>
-						</configuration>
 					</execution>
 				</executions>
 			</plugin>
 			
+			<!-- Add source directories -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>build-helper-maven-plugin</artifactId>
@@ -119,22 +232,53 @@
 					</execution>
 				</executions>
 			</plugin>
-			
-			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>exec-maven-plugin</artifactId>
-				<version>3.0.0</version>
-				<configuration>
-					<additionalClasspathElements>
-						<additionalClasspathElement>${project.build.directory}/lib</additionalClasspathElement>
-					</additionalClasspathElements>
-				</configuration>
-			</plugin>
 		</plugins>
 	</build>
 	
+	<!-- Reporting Configuration -->
+	<reporting>
+		<plugins>
+			<!-- Surefire Report -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-report-plugin</artifactId>
+				<version>${surefire.version}</version>
+			</plugin>
+			
+			<!-- JaCoCo Report -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>report</report>
+						</reports>
+					</reportSet>
+				</reportSets>
+			</plugin>
+			
+			<!-- Project Info Reports -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-project-info-reports-plugin</artifactId>
+				<version>3.4.5</version>
+				<reportSets>
+					<reportSet>
+						<reports>
+							<report>index</report>
+							<report>summary</report>
+							<report>dependencies</report>
+						</reports>
+					</reportSet>
+				</reportSets>
+			</plugin>
+		</plugins>
+	</reporting>
+	
 	<dependencies>
-		<!-- JUnit 5 -->
+		<!-- JUnit 5 - No test scope for Eclipse plugin projects -->
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter-api</artifactId>
@@ -152,7 +296,27 @@
 		</dependency>
 		<dependency>
 			<groupId>org.junit.platform</groupId>
+			<artifactId>junit-platform-suite</artifactId>
+			<version>${junit.platform.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.platform</groupId>
 			<artifactId>junit-platform-console</artifactId>
+			<version>${junit.platform.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.platform</groupId>
+			<artifactId>junit-platform-commons</artifactId>
+			<version>${junit.platform.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.platform</groupId>
+			<artifactId>junit-platform-suite-api</artifactId>
+			<version>${junit.platform.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.platform</groupId>
+			<artifactId>junit-platform-suite-engine</artifactId>
 			<version>${junit.platform.version}</version>
 		</dependency>
 		
@@ -162,6 +326,41 @@
 			<artifactId>org.xtext.example.mydsl</artifactId>
 			<version>${project.version}</version>
 		</dependency>
+		
+		<!-- Xtext testing -->
+		<dependency>
+			<groupId>org.eclipse.xtext</groupId>
+			<artifactId>org.eclipse.xtext.testing</artifactId>
+			<version>${xtextVersion}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.eclipse.xtext</groupId>
+			<artifactId>org.eclipse.xtext.xbase.testing</artifactId>
+			<version>${xtextVersion}</version>
+		</dependency>
+		
+		<!-- Additional testing utilities -->
+		<dependency>
+			<groupId>org.hamcrest</groupId>
+			<artifactId>hamcrest</artifactId>
+			<version>2.2</version>
+		</dependency>
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-core</artifactId>
+			<version>5.5.0</version>
+		</dependency>
+		
+		<!-- Logging for test runner -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>2.0.9</version>
+		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-simple</artifactId>
+			<version>2.0.9</version>
+		</dependency>
 	</dependencies>
-
 </project>
