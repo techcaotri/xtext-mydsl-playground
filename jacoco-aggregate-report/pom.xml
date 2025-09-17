@@ -43,13 +43,6 @@
                         </goals>
                         <configuration>
                             <outputDirectory>${project.reporting.outputDirectory}/jacoco-aggregate</outputDirectory>
-                            <!-- Include source directories from all modules -->
-                            <sourceDirectories>
-                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/src</sourceDirectory>
-                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/xtend-gen</sourceDirectory>
-                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl.tests/src</sourceDirectory>
-                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl.tests/xtend-gen</sourceDirectory>
-                            </sourceDirectories>
                         </configuration>
                     </execution>
                 </executions>

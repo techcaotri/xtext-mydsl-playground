@@ -40,10 +40,6 @@
             <configuration>
               <outputDirectory>xtend-gen</outputDirectory>
               <testOutputDirectory>xtend-gen</testOutputDirectory>
-              <!-- Enable trace for debugging -->
-              <xtendAsPrimaryDebugSource>true</xtendAsPrimaryDebugSource>
-              <hideLocalSyntheticVariables>true</hideLocalSyntheticVariables>
-              <writeTaceFiles>true</writeTaceFiles>
             </configuration>
           </execution>
         </executions>
@@ -55,12 +51,6 @@
         <artifactId>jacoco-maven-plugin</artifactId>
         <version>${jacoco.version}</version>
         <configuration>
-          <!-- Include Xtend source directories for proper coverage mapping -->
-          <sourceDirectories>
-            <sourceDirectory>${project.basedir}/src</sourceDirectory>
-            <!-- Include xtend-gen for trace mapping -->
-            <sourceDirectory>${project.basedir}/xtend-gen</sourceDirectory>
-          </sourceDirectories>
           <!-- Exclude generated and test files -->
           <excludes>
             <exclude>**/*Test.class</exclude>
@@ -98,23 +88,6 @@
             <configuration>
               <dataFile>${jacoco.destFile}</dataFile>
               <outputDirectory>${project.reporting.outputDirectory}/jacoco</outputDirectory>
-              <!-- Add source directories for Xtend -->
-              <sourceDirectories>
-                <!-- Test module sources -->
-                <sourceDirectory>${project.basedir}/src</sourceDirectory>
-                <sourceDirectory>${project.basedir}/xtend-gen</sourceDirectory>
-                <!-- Main module sources (relative path) -->
-                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/src</sourceDirectory>
-                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/xtend-gen</sourceDirectory>
-              </sourceDirectories>
-              <!-- Class directories -->
-              <classDirectories>
-                <!-- Test module classes -->
-                <classDirectory>${project.build.outputDirectory}</classDirectory>
-                <classDirectory>${project.basedir}/target/classes</classDirectory>
-                <!-- Main module classes -->
-                <classDirectory>${project.basedir}/../org.xtext.example.mydsl/target/classes</classDirectory>
-              </classDirectories>
             </configuration>
           </execution>
           <execution>
@@ -162,13 +135,9 @@
           </excludes>
           <!-- Use the argLine from JaCoCo -->
           <argLine>${argLine}</argLine>
-          <systemPropertyVariables>
-            <java.awt.headless>true</java.awt.headless>
-          </systemPropertyVariables>
           <!-- Test report configuration -->
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <redirectTestOutputToFile>true</redirectTestOutputToFile>
-          <printSummary>true</printSummary>
         </configuration>
         <executions>
           <execution>

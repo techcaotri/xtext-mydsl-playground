@@ -94,25 +94,6 @@
     <pluginManagement>
       <plugins>
         <plugin>
-          <groupId>org.eclipse.xtend</groupId>
-          <artifactId>xtend-maven-plugin</artifactId>
-          <version>${xtextVersion}</version>
-          <executions>
-            <execution>
-              <goals>
-                <goal>compile</goal>
-                <goal>xtend-install-debug-info</goal>
-                <goal>testCompile</goal>
-                <goal>xtend-test-install-debug-info</goal>
-              </goals>
-            </execution>
-          </executions>
-          <configuration>
-            <outputDirectory>${basedir}/xtend-gen</outputDirectory>
-            <testOutputDirectory>${basedir}/xtend-gen</testOutputDirectory>
-          </configuration>
-        </plugin>
-        <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-clean-plugin</artifactId>
           <version>3.2.0</version>
@@ -175,8 +156,7 @@
             <testOutputDirectory>${basedir}/xtend-gen</testOutputDirectory>
             <!-- Critical for JaCoCo to map coverage to Xtend source files -->
             <xtendAsPrimaryDebugSource>true</xtendAsPrimaryDebugSource>
-            <hideLocalSyntheticVariables>true</hideLocalSyntheticVariables>
-            <writeTaceFiles>true</writeTaceFiles>
+            <writeTraceFiles>true</writeTraceFiles>
             <!-- Ensure trace files are generated for coverage mapping -->
             <generateSyntheticSuppressWarnings>true</generateSyntheticSuppressWarnings>
             <generateGeneratedAnnotation>true</generateGeneratedAnnotation>
@@ -190,11 +170,6 @@
           <artifactId>jacoco-maven-plugin</artifactId>
           <version>${jacoco.version}</version>
           <configuration>
-            <!-- Include both Xtend source and generated Java -->
-            <sourceDirectories>
-              <sourceDirectory>${project.basedir}/src</sourceDirectory>
-              <sourceDirectory>${project.basedir}/xtend-gen</sourceDirectory>
-            </sourceDirectories>
             <!-- Exclude test classes and generated trace files -->
             <excludes>
               <exclude>**/*Test.class</exclude>
