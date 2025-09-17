@@ -124,9 +124,20 @@ echo ""
 echo "Step 6: Fixing source file references..."
 cd org.xtext.example.mydsl.tests
 
-# Generate a report with explicit source directories
-cat > jacoco-report.xml << 'EOF'
-<project>
+# Generate a proper POM file for the combined report
+cat > jacoco-report-pom.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <groupId>org.xtext.example.mydsl</groupId>
+    <artifactId>jacoco-combined-report</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    
     <build>
         <plugins>
             <plugin>
@@ -134,17 +145,17 @@ cat > jacoco-report.xml << 'EOF'
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.11</version>
                 <configuration>
-                    <dataFile>target/jacoco.exec</dataFile>
-                    <outputDirectory>target/site/jacoco-fixed</outputDirectory>
+                    <dataFile>${project.basedir}/target/jacoco.exec</dataFile>
+                    <outputDirectory>${project.basedir}/target/site/jacoco-combined</outputDirectory>
                     <sourceDirectories>
-                        <sourceDirectory>src</sourceDirectory>
-                        <sourceDirectory>xtend-gen</sourceDirectory>
-                        <sourceDirectory>../org.xtext.example.mydsl/src</sourceDirectory>
-                        <sourceDirectory>../org.xtext.example.mydsl/xtend-gen</sourceDirectory>
+                        <sourceDirectory>${project.basedir}/src</sourceDirectory>
+                        <sourceDirectory>${project.basedir}/xtend-gen</sourceDirectory>
+                        <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/src</sourceDirectory>
+                        <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/xtend-gen</sourceDirectory>
                     </sourceDirectories>
                     <classDirectories>
-                        <classDirectory>target/classes</classDirectory>
-                        <classDirectory>../org.xtext.example.mydsl/target/classes</classDirectory>
+                        <classDirectory>${project.basedir}/target/classes</classDirectory>
+                        <classDirectory>${project.basedir}/../org.xtext.example.mydsl/target/classes</classDirectory>
                     </classDirectories>
                 </configuration>
             </plugin>
@@ -153,7 +164,8 @@ cat > jacoco-report.xml << 'EOF'
 </project>
 EOF
 
-mvn jacoco:report -f jacoco-report.xml
+# Generate the combined report
+mvn jacoco:report -f jacoco-report-pom.xml
 
 echo ""
 echo "============================================"

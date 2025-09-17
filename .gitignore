@@ -27,10 +27,10 @@ replay_pid*
 **/src-gen/
 **/xtend-gen/
 **/target/
-**/target/**
 
 **/.settings/
 test-reports/
+coverage-reports
 
 # Generated files
 *.exec

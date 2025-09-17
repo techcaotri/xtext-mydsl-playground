@@ -91,7 +91,7 @@
           </execution>
           <execution>
             <id>report</id>
-            <phase>test</phase>
+            <phase>verify</phase>
             <goals>
               <goal>report</goal>
             </goals>
@@ -111,6 +111,7 @@
               <classDirectories>
                 <!-- Test module classes -->
                 <classDirectory>${project.build.outputDirectory}</classDirectory>
+                <classDirectory>${project.basedir}/target/classes</classDirectory>
                 <!-- Main module classes -->
                 <classDirectory>${project.basedir}/../org.xtext.example.mydsl/target/classes</classDirectory>
               </classDirectories>
