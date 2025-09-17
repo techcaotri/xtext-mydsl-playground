@@ -1,0 +1,25 @@
+<project>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.11</version>
+                <configuration>
+                    <dataFile>target/jacoco.exec</dataFile>
+                    <outputDirectory>target/site/jacoco-fixed</outputDirectory>
+                    <sourceDirectories>
+                        <sourceDirectory>src</sourceDirectory>
+                        <sourceDirectory>xtend-gen</sourceDirectory>
+                        <sourceDirectory>../org.xtext.example.mydsl/src</sourceDirectory>
+                        <sourceDirectory>../org.xtext.example.mydsl/xtend-gen</sourceDirectory>
+                    </sourceDirectories>
+                    <classDirectories>
+                        <classDirectory>target/classes</classDirectory>
+                        <classDirectory>../org.xtext.example.mydsl/target/classes</classDirectory>
+                    </classDirectories>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -26,4 +26,11 @@ replay_pid*
 # Xtext/Xtend generated files
 **/src-gen/
 **/xtend-gen/
+**/target/
+**/target/**
 
+**/.settings/
+test-reports/
+
+# Generated files
+*.exec

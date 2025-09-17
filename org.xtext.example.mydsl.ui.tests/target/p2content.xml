@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <units size='1'>
-  <unit id='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509040158' generation='2'>
-    <update id='org.xtext.example.mydsl.ui.tests' range='[0.0.0,1.0.0.202509040158)' severity='0'/>
+  <unit id='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509160821' generation='2'>
+    <update id='org.xtext.example.mydsl.ui.tests' range='[0.0.0,1.0.0.202509160821)' severity='0'/>
     <properties size='6'>
       <property name='org.eclipse.equinox.p2.name' value='org.xtext.example.mydsl.ui.tests'/>
       <property name='org.eclipse.equinox.p2.provider' value='My Company'/>
@@ -11,10 +11,10 @@
       <property name='maven-type' value='eclipse-test-plugin'/>
     </properties>
     <provides size='5'>
-      <provided namespace='org.eclipse.equinox.p2.iu' name='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509040158'/>
-      <provided namespace='osgi.bundle' name='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509040158'/>
+      <provided namespace='org.eclipse.equinox.p2.iu' name='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509160821'/>
+      <provided namespace='osgi.bundle' name='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509160821'/>
       <provided namespace='java.package' name='org.xtext.example.mydsl.ui.tests' version='0.0.0'/>
-      <provided namespace='osgi.identity' name='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509040158'>
+      <provided namespace='osgi.identity' name='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509160821'>
         <properties size='1'>
           <property name='type' value='osgi.bundle'/>
         </properties>
@@ -36,20 +36,20 @@
           org.xtext.example.mydsl.ui.tests
         </description>
       </requiredProperties>
-      <required namespace='org.eclipse.equinox.p2.iu' name='org.xtext.example.mydsl.ui.tests.source' range='[1.0.0.202509040158,1.0.0.202509040158]' optional='true'>
+      <required namespace='org.eclipse.equinox.p2.iu' name='org.xtext.example.mydsl.ui.tests.source' range='[1.0.0.202509160821,1.0.0.202509160821]' optional='true'>
         <filter>
           (org.eclipse.update.install.sources=true)
         </filter>
       </required>
     </requires>
     <artifacts size='1'>
-      <artifact classifier='osgi.bundle' id='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509040158'/>
+      <artifact classifier='osgi.bundle' id='org.xtext.example.mydsl.ui.tests' version='1.0.0.202509160821'/>
     </artifacts>
     <touchpoint id='org.eclipse.equinox.p2.osgi' version='1.0.0'/>
     <touchpointData size='1'>
       <instructions size='1'>
         <instruction key='manifest'>
-          Bundle-SymbolicName: org.xtext.example.mydsl.ui.tests; singleton:=true&#xA;Bundle-Version: 1.0.0.202509040158&#xA;
+          Bundle-SymbolicName: org.xtext.example.mydsl.ui.tests; singleton:=true&#xA;Bundle-Version: 1.0.0.202509160821&#xA;
         </instruction>
       </instructions>
     </touchpointData>

@@ -1,0 +1,59 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <parent>
+        <groupId>org.xtext.example.mydsl</groupId>
+        <artifactId>org.xtext.example.mydsl.parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    
+    <artifactId>jacoco-aggregate-report</artifactId>
+    <name>JaCoCo Aggregate Coverage Report</name>
+    <packaging>pom</packaging>
+    
+    <dependencies>
+        <!-- Include all modules you want in the coverage report -->
+        <dependency>
+            <groupId>org.xtext.example.mydsl</groupId>
+            <artifactId>org.xtext.example.mydsl</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.xtext.example.mydsl</groupId>
+            <artifactId>org.xtext.example.mydsl.tests</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+    
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.11</version>
+                <executions>
+                    <execution>
+                        <id>report-aggregate</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report-aggregate</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.reporting.outputDirectory}/jacoco-aggregate</outputDirectory>
+                            <!-- Include source directories from all modules -->
+                            <sourceDirectories>
+                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/src</sourceDirectory>
+                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl/xtend-gen</sourceDirectory>
+                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl.tests/src</sourceDirectory>
+                                <sourceDirectory>${project.basedir}/../org.xtext.example.mydsl.tests/xtend-gen</sourceDirectory>
+                            </sourceDirectories>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

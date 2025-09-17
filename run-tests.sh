@@ -32,7 +32,7 @@ echo "Step 4: Check for coverage data"
 if [ -f "target/jacoco.exec" ]; then
     echo "Coverage data found: target/jacoco.exec"
     echo "Generating HTML report..."
-    mvn jacoco:report -T 12 -X
+    mvn jacoco:report -T 12
     echo "Coverage report: target/site/jacoco/index.html"
 else
     echo "WARNING: No coverage data found!"

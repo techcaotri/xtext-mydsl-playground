@@ -20,6 +20,8 @@
     <moduleProperties></moduleProperties>
     <systemProperties></systemProperties>
     <additionalTestArguments></additionalTestArguments>
+    <aggregate.report.dir>${maven.multiModuleProjectDirectory}/target/site/jacoco-aggregate</aggregate.report.dir>
+    <jacoco.version>0.8.11</jacoco.version>
   </properties>
   <modules>
     <module>org.xtext.example.mydsl</module>
@@ -29,6 +31,7 @@
     <module>org.xtext.example.mydsl.tests</module>
     <module>org.xtext.example.mydsl.ui.tests</module>
     <module>org.xtext.example.mydsl.standalone</module>
+    <module>jacoco-aggregate-report</module>
   </modules>
   <dependencyManagement>
     <dependencies>
@@ -185,7 +188,7 @@
         <plugin>
           <groupId>org.jacoco</groupId>
           <artifactId>jacoco-maven-plugin</artifactId>
-          <version>0.8.11</version>
+          <version>${jacoco.version}</version>
           <configuration>
             <!-- Include both Xtend source and generated Java -->
             <sourceDirectories>
@@ -207,8 +210,8 @@
                 <goal>prepare-agent</goal>
               </goals>
               <configuration>
-                <propertyName>argLine</propertyName>
-                <append>true</append>
+                <destFile>${project.build.directory}/jacoco.exec</destFile>
+                <propertyName>jacoco.agent.argLine</propertyName>
               </configuration>
             </execution>
             <execution>
