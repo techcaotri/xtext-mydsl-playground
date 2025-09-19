@@ -5,12 +5,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Tag
-import org.junit.jupiter.api.io.TempDir
 import org.xtext.example.mydsl.generator.TemplateLoader
 import java.nio.file.Path
 import java.nio.file.Files
 import java.nio.charset.StandardCharsets
 import java.util.HashMap
+import java.io.File
 
 import static org.junit.jupiter.api.Assertions.*
 
@@ -24,8 +24,6 @@ import static org.junit.jupiter.api.Assertions.*
 class TemplateLoaderTest {
     
     TemplateLoader templateLoader
-    
-    @TempDir
     Path tempDir
     
     @BeforeEach
@@ -33,12 +31,32 @@ class TemplateLoaderTest {
         templateLoader = new TemplateLoader()
         // Clear any cached templates
         templateLoader.clearCache()
+        
+        // Manually create temp directory since @TempDir doesn't work in Tycho
+        val tempDirName = "temp_" + System.currentTimeMillis() + "_" + (Math.random() * 10000).intValue
+        tempDir = Files.createTempDirectory(tempDirName)
+        
+        // Ensure directory is writable
+        tempDir.toFile().mkdirs()
+        tempDir.toFile().setWritable(true)
     }
     
     @AfterEach
     def void tearDown() {
         if (templateLoader !== null) {
             templateLoader.clearCache()
+        }
+        
+        // Clean up temp directory
+        if (tempDir !== null && Files.exists(tempDir)) {
+            try {
+                // Delete all files in temp directory
+                Files.walk(tempDir)
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .forEach[Files.deleteIfExists(it)]
+            } catch (Exception e) {
+                // Silent cleanup failure
+            }
         }
     }
     

@@ -91,12 +91,37 @@
           </dependency>
         </dependencies>
       </plugin>
+      
+      <!-- Add generated sources to build path -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.3.0</version>
+        <executions>
+          <execution>
+            <id>add-source</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.basedir}/src-gen</source>
+                <source>${project.basedir}/xtend-gen</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Xtend compilation AFTER source generation -->
       <plugin>
         <groupId>org.eclipse.xtend</groupId>
         <artifactId>xtend-maven-plugin</artifactId>
         <version>${xtextVersion}</version>
         <executions>
           <execution>
+            <phase>process-sources</phase>
             <goals>
               <goal>compile</goal>
               <goal>testCompile</goal>
@@ -124,30 +149,6 @@
             </fileset>
             <fileset>
               <directory>${basedir}/xtend-gen/</directory>
-              <includes>
-                <include>**/*</include>
-              </includes>
-            </fileset>
-            <fileset>
-              <directory>${basedir}/../org.xtext.example.mydsl.tests/src-gen/</directory>
-              <includes>
-                <include>**/*</include>
-              </includes>
-            </fileset>
-            <fileset>
-              <directory>${basedir}/../org.xtext.example.mydsl.ide/src-gen/</directory>
-              <includes>
-                <include>**/*</include>
-              </includes>
-            </fileset>
-            <fileset>
-              <directory>${basedir}/../org.xtext.example.mydsl.ui/src-gen/</directory>
-              <includes>
-                <include>**/*</include>
-              </includes>
-            </fileset>
-            <fileset>
-              <directory>${basedir}/../org.xtext.example.mydsl.ui.tests/src-gen/</directory>
               <includes>
                 <include>**/*</include>
               </includes>

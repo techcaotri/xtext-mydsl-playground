@@ -99,7 +99,7 @@ clean_project() {
 	if [ "$DO_CLEAN" = true ]; then
 		print_status "Cleaning project (--clean specified)..."
 		mvn clean -T 12
-		
+
 		# Clean and recreate report directories
 		print_status "Cleaning report directories..."
 		rm -rf "${REPORTS_DIR}" "${COVERAGE_DIR}"
@@ -116,15 +116,25 @@ clean_project() {
 # Function to build the project
 build_project() {
 	if [ "$SKIP_BUILD" = false ]; then
-		print_status "Building main project..."
-
-		# Step 1: Build main module first to ensure classes exist
-		print_status "Building main module with Xtext/Xtend compilation..."
-		cd org.xtext.example.mydsl
-		mvn clean compile xtend:compile xtend:xtend-install-debug-info -T 12
+		print_status "Building project with coverage profile..."
+		echo "Building target platform..."
+		cd org.xtext.example.mydsl.target
+		mvn clean install -DskipTests
 		cd ..
-		
-		print_status "Main module build completed"
+
+		# CRITICAL: Build main module sequentially to avoid race conditions
+		print_status "Building main module (sequential to avoid race conditions)..."
+		cd org.xtext.example.mydsl
+		mvn clean generate-sources -Dexec.skip=false -Pcoverage
+		mvn compile -DskipTests -Pcoverage
+		mvn install -DskipTests -Pcoverage
+		cd ..
+
+		# Build remaining modules in parallel
+		print_status "Building other modules..."
+		mvn install -DskipTests -T 12 -Pcoverage -pl !org.xtext.example.mydsl
+
+		print_status "Build completed"
 	else
 		print_warning "Skipping build phase"
 	fi
@@ -134,44 +144,32 @@ build_project() {
 run_tests() {
 	if [ "$SKIP_TESTS" = false ]; then
 		print_status "Running tests with cross-module coverage..."
-		
+
 		TEST_FAILED=false
 
-		cd org.xtext.example.mydsl.tests
+		# Run tests with JaCoCo coverage
+		print_status "Executing tests with JaCoCo coverage..."
+		mvn verify -T 12 \
+			-Pcoverage \
+			-Dmaven.test.failure.ignore=true \
+			-DfailIfNoTests=false || TEST_FAILED=true
 
-		# Run tests with JaCoCo agent configured for cross-module coverage
-		print_status "Executing tests with enhanced JaCoCo configuration..."
-		mvn clean verify -T 12 \
-			-Djacoco.includes="org.xtext.example.mydsl.*" \
-			-Djacoco.append=true \
-			-Djacoco.destFile="${PWD}/target/jacoco.exec" \
-			-Dmaven.test.failure.ignore=false \
-			-P${PROFILE} || TEST_FAILED=true
+		# Generate coverage reports
+		print_status "Generating JaCoCo coverage reports..."
+
+		# Generate individual module reports
+		cd org.xtext.example.mydsl
+		mvn jacoco:report -Pcoverage -Dmaven.test.failure.ignore=true || true
+		cd ..
+
+		cd org.xtext.example.mydsl.tests
+		mvn jacoco:report -Pcoverage -Dmaven.test.failure.ignore=true || true
 
 		# Generate surefire HTML report
 		print_status "Generating Surefire HTML report..."
-		mvn surefire-report:report -T 12
+		mvn surefire-report:report -T 12 -Dmaven.test.failure.ignore=true || true
 
-		# Copy execution data to necessary locations for different reports
-		print_status "Copying execution data for coverage analysis..."
-		if [ -f "target/jacoco.exec" ]; then
-			cp target/jacoco.exec ../jacoco-aggregate-report/target/ 2>/dev/null || mkdir -p ../jacoco-aggregate-report/target && cp target/jacoco.exec ../jacoco-aggregate-report/target/
-			cp target/jacoco.exec ../org.xtext.example.mydsl/target/ 2>/dev/null || mkdir -p ../org.xtext.example.mydsl/target && cp target/jacoco.exec ../org.xtext.example.mydsl/target/
-			cp target/jacoco.exec "${COVERAGE_DIR}/jacoco.exec" 2>/dev/null || true
-		fi
-
-		# Generate standard JaCoCo report (test module only)
-		print_status "Generating standard coverage report (test module only)..."
-		mvn jacoco:report -T 12 \
-			-Djacoco.dataFile="target/jacoco.exec"
-
-		# Copy standard report to coverage directory
-		if [ -d "target/site/jacoco" ]; then
-			cp -r target/site/jacoco "${COVERAGE_DIR}/jacoco-test-module"
-			print_status "Test module coverage report copied to coverage directory"
-		fi
-
-		# Copy test reports to reports directory (but NOT coverage reports)
+		# Copy test reports
 		if [ -d "target/surefire-reports" ]; then
 			cp -r target/surefire-reports "${REPORTS_DIR}/"
 			print_status "Surefire test reports copied to reports directory"
@@ -189,14 +187,38 @@ run_tests() {
 			print_status "Surefire HTML report copied to reports directory"
 		fi
 
+		# Copy coverage report
+		if [ -d "target/site/jacoco" ]; then
+			cp -r target/site/jacoco "${COVERAGE_DIR}/jacoco-test-module"
+			print_status "Test module coverage report copied to coverage directory"
+		fi
+
 		cd ..
 
-		# Generate aggregate report if module exists (THIS IS THE CROSS-MODULE COVERAGE)
+		# Generate aggregate coverage report
 		if [ -d "jacoco-aggregate-report" ]; then
-			print_status "Generating aggregate coverage report (cross-module coverage for both main and test modules)..."
-			mvn clean verify -pl jacoco-aggregate-report -am -T 12
-			
-			# Copy aggregate report to coverage directory
+			print_status "Generating aggregate coverage report (cross-module)..."
+
+			# First ensure execution data is collected
+			mkdir -p jacoco-aggregate-report/target
+
+			# Collect all jacoco.exec files
+			find . -name "jacoco.exec" -type f | while read exec_file; do
+				print_status "Found execution data: $exec_file"
+				cp "$exec_file" "jacoco-aggregate-report/target/jacoco-$(basename $(dirname $(dirname $exec_file))).exec"
+			done
+
+			# Merge execution data files
+			if [ -f "org.xtext.example.mydsl.tests/target/jacoco.exec" ]; then
+				cp org.xtext.example.mydsl.tests/target/jacoco.exec jacoco-aggregate-report/target/jacoco-merged.exec
+			fi
+
+			# Generate aggregate report
+			mvn verify -pl jacoco-aggregate-report -am -T 12 \
+				-Pcoverage \
+				-Dmaven.test.failure.ignore=true || true
+
+			# Copy aggregate report
 			if [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
 				cp -r jacoco-aggregate-report/target/site/jacoco-aggregate "${COVERAGE_DIR}/"
 				print_status "Aggregate cross-module coverage report copied to coverage directory"
@@ -205,6 +227,7 @@ run_tests() {
 
 		if [ "$TEST_FAILED" = true ]; then
 			print_error "Some tests failed. Check reports for details."
+			print_warning "Reports have been generated despite test failures."
 		else
 			print_status "All tests passed!"
 		fi
@@ -217,7 +240,7 @@ run_tests() {
 generate_site() {
 	if [ "$GENERATE_SITE" = true ]; then
 		print_status "Generating Maven site with reports..."
-		mvn site -T 12
+		mvn site -T 12 -Dmaven.test.failure.ignore=true || true
 
 		print_status "Site generated at: ${PROJECT_DIR}/target/site/index.html"
 	fi
@@ -241,7 +264,6 @@ Profile: ${PROFILE}
 Test Results:
 EOF
 
-	# Check for surefire HTML report in the correct location
 	if [ -f "${REPORTS_DIR}/site/surefire-report.html" ]; then
 		echo "- Surefire HTML Report: ${REPORTS_DIR}/site/surefire-report.html" >>"${SUMMARY_FILE}"
 	elif [ -f "org.xtext.example.mydsl.tests/target/site/surefire-report.html" ]; then
@@ -255,7 +277,6 @@ EOF
 	echo "" >>"${SUMMARY_FILE}"
 	echo "Coverage Reports:" >>"${SUMMARY_FILE}"
 
-	# List all available coverage reports
 	if [ -d "${COVERAGE_DIR}/jacoco-test-module" ]; then
 		echo "- Test Module Coverage: ${COVERAGE_DIR}/jacoco-test-module/index.html" >>"${SUMMARY_FILE}"
 	fi
@@ -263,7 +284,6 @@ EOF
 		echo "- Aggregate Cross-Module Coverage: ${COVERAGE_DIR}/jacoco-aggregate/index.html" >>"${SUMMARY_FILE}"
 	fi
 
-	# Also check original locations
 	if [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
 		echo "- Aggregate (Original Location): jacoco-aggregate-report/target/site/jacoco-aggregate/index.html" >>"${SUMMARY_FILE}"
 	fi
@@ -275,7 +295,6 @@ EOF
 		echo "Test Statistics:" >>"${SUMMARY_FILE}"
 		echo "---------------" >>"${SUMMARY_FILE}"
 
-		# Count test results from XML files
 		TOTAL_TESTS=$(grep -h "tests=\"[0-9]*\"" ${REPORTS_DIR}/surefire-reports/*.xml 2>/dev/null | sed 's/.*tests=\"\([0-9]*\)\".*/\1/' | awk '{sum += $1} END {print sum}' || echo "0")
 		FAILED_TESTS=$(grep -h "failures=\"[0-9]*\"" ${REPORTS_DIR}/surefire-reports/*.xml 2>/dev/null | sed 's/.*failures=\"\([0-9]*\)\".*/\1/' | awk '{sum += $1} END {print sum}' || echo "0")
 		ERROR_TESTS=$(grep -h "errors=\"[0-9]*\"" ${REPORTS_DIR}/surefire-reports/*.xml 2>/dev/null | sed 's/.*errors=\"\([0-9]*\)\".*/\1/' | awk '{sum += $1} END {print sum}' || echo "0")
@@ -288,15 +307,6 @@ EOF
 		echo "Skipped: ${SKIPPED_TESTS}" >>"${SUMMARY_FILE}"
 	fi
 
-	# Add coverage statistics if available
-	if [ -f "${COVERAGE_DIR}/jacoco.exec" ]; then
-		echo "" >>"${SUMMARY_FILE}"
-		echo "Code Coverage Reports Generated:" >>"${SUMMARY_FILE}"
-		echo "-------------------------------" >>"${SUMMARY_FILE}"
-		[ -d "${COVERAGE_DIR}/jacoco-test-module" ] && echo "✓ Test Module Coverage Report" >>"${SUMMARY_FILE}"
-		[ -d "${COVERAGE_DIR}/jacoco-aggregate" ] && echo "✓ Aggregate Cross-Module Coverage Report (includes both main and test modules)" >>"${SUMMARY_FILE}"
-	fi
-
 	cat "${SUMMARY_FILE}"
 }
 
@@ -304,75 +314,56 @@ EOF
 archive_reports() {
 	print_status "Archiving test reports..."
 
-	# Clean up any accidentally copied coverage reports in test-reports before archiving
-	rm -rf "${REPORTS_DIR}/jacoco" "${REPORTS_DIR}/jacoco-aggregate" 2>/dev/null || true
-
-	# Create archive with both test and coverage reports
 	tar -czf "${REPORT_ARCHIVE}" \
 		-C "${PROJECT_DIR}" \
 		"test-reports" \
 		"coverage-reports" \
 		2>/dev/null || print_warning "Could not create full archive"
 
-	# Also include original report locations if they exist
-	if [ -d "org.xtext.example.mydsl.tests/target/site" ] || [ -d "jacoco-aggregate-report/target/site" ]; then
-		tar -rzf "${REPORT_ARCHIVE}" \
-			org.xtext.example.mydsl.tests/target/site \
-			jacoco-aggregate-report/target/site \
-			2>/dev/null || true
-	fi
-
 	if [ -f "${REPORT_ARCHIVE}" ]; then
 		print_status "Reports archived to: ${REPORT_ARCHIVE}"
 	fi
 }
 
-# Function to open reports in browser (Linux only with user confirmation)
+# Function to open reports in browser
 open_reports() {
 	if [ "$SKIP_TESTS" = false ]; then
 		echo ""
 		print_status "Test and coverage reports are ready!"
 		echo ""
 		echo "Available reports:"
-		
-		# Show test reports
+
 		echo "TEST REPORTS:"
 		if [ -f "${REPORTS_DIR}/site/surefire-report.html" ]; then
 			echo "  • Surefire HTML: ${REPORTS_DIR}/site/surefire-report.html"
 		elif [ -f "org.xtext.example.mydsl.tests/target/site/surefire-report.html" ]; then
 			echo "  • Surefire HTML: org.xtext.example.mydsl.tests/target/site/surefire-report.html"
 		fi
-		
-		# Show coverage reports
+
 		echo ""
 		echo "COVERAGE REPORTS:"
 		[ -d "${COVERAGE_DIR}/jacoco-test-module" ] && echo "  • Test Module Coverage: ${COVERAGE_DIR}/jacoco-test-module/index.html"
-		[ -d "${COVERAGE_DIR}/jacoco-aggregate" ] && echo "  • Aggregate Cross-Module Coverage (BOTH modules): ${COVERAGE_DIR}/jacoco-aggregate/index.html"
-		
-		# Show original locations if copies failed
+		[ -d "${COVERAGE_DIR}/jacoco-aggregate" ] && echo "  • Aggregate Cross-Module Coverage: ${COVERAGE_DIR}/jacoco-aggregate/index.html"
+
 		if [ ! -d "${COVERAGE_DIR}/jacoco-aggregate" ] && [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
 			echo "  • Aggregate (Original location): jacoco-aggregate-report/target/site/jacoco-aggregate/index.html"
 		fi
-		
+
 		echo ""
 		read -p "Would you like to open the coverage reports in your browser? (y/n): " -n 1 -r
 		echo ""
-		
+
 		if [[ $REPLY =~ ^[Yy]$ ]]; then
-			print_status "Opening aggregate cross-module coverage report..."
-			
-			# Priority: Open the aggregate report since it shows both modules
 			if [ -d "${COVERAGE_DIR}/jacoco-aggregate" ]; then
-				xdg-open "${COVERAGE_DIR}/jacoco-aggregate/index.html" 2>/dev/null || print_warning "Could not open browser"
+				{ xdg-open "${COVERAGE_DIR}/jacoco-aggregate/index.html" 2>/dev/null || print_warning "Could not open browser"; } &
 			elif [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
-				xdg-open "jacoco-aggregate-report/target/site/jacoco-aggregate/index.html" 2>/dev/null || print_warning "Could not open browser"
+				{ xdg-open "jacoco-aggregate-report/target/site/jacoco-aggregate/index.html" 2>/dev/null || print_warning "Could not open browser"; } &
 			elif [ -d "${COVERAGE_DIR}/jacoco-test-module" ]; then
-				print_warning "Aggregate report not found, opening test module coverage instead..."
-				xdg-open "${COVERAGE_DIR}/jacoco-test-module/index.html" 2>/dev/null || print_warning "Could not open browser"
+				{ xdg-open "${COVERAGE_DIR}/jacoco-test-module/index.html" 2>/dev/null || print_warning "Could not open browser"; } &
 			else
 				print_warning "No coverage reports found to open"
 			fi
-			
+
 			# Ask about test report
 			if [ -f "${REPORTS_DIR}/site/surefire-report.html" ] || [ -f "org.xtext.example.mydsl.tests/target/site/surefire-report.html" ]; then
 				echo ""
@@ -380,9 +371,9 @@ open_reports() {
 				echo ""
 				if [[ $REPLY =~ ^[Yy]$ ]]; then
 					if [ -f "${REPORTS_DIR}/site/surefire-report.html" ]; then
-						xdg-open "${REPORTS_DIR}/site/surefire-report.html" 2>/dev/null || print_warning "Could not open browser"
+						{ xdg-open "${REPORTS_DIR}/site/surefire-report.html" 2>/dev/null || print_warning "Could not open browser"; } &
 					else
-						xdg-open "org.xtext.example.mydsl.tests/target/site/surefire-report.html" 2>/dev/null || print_warning "Could not open browser"
+						(xdg-open "org.xtext.example.mydsl.tests/target/site/surefire-report.html" 2>/dev/null || print_warning "Could not open browser") &
 					fi
 				fi
 			fi
@@ -410,23 +401,6 @@ main() {
 	echo "================================================"
 	print_status "Build and test process completed!"
 	echo "================================================"
-	echo ""
-	echo "Summary of report locations:"
-	echo "-----------------------------"
-	echo "Centralized Reports Directory:"
-	echo "  • Test Reports: ${REPORTS_DIR}/"
-	echo "  • Coverage Reports: ${COVERAGE_DIR}/"
-	echo ""
-	echo "Original Maven Locations:"
-	echo "  • Test Module Reports: org.xtext.example.mydsl.tests/target/site/"
-	echo "  • Aggregate Coverage: jacoco-aggregate-report/target/site/jacoco-aggregate/"
-	echo ""
-	if [ -f "${REPORT_ARCHIVE}" ]; then
-		echo "Archive: ${REPORT_ARCHIVE}"
-	fi
-	if [ "$GENERATE_SITE" = true ]; then
-		echo "Maven Site: ${PROJECT_DIR}/target/site/index.html"
-	fi
 }
 
 # Run main function

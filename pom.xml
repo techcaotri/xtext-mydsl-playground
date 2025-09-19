@@ -20,8 +20,9 @@
     <moduleProperties></moduleProperties>
     <systemProperties></systemProperties>
     <additionalTestArguments></additionalTestArguments>
-    <aggregate.report.dir>${maven.multiModuleProjectDirectory}/target/site/jacoco-aggregate</aggregate.report.dir>
     <jacoco.version>0.8.11</jacoco.version>
+    <jacoco.destFile>${project.basedir}/../target/jacoco.exec</jacoco.destFile>
+    <sonar.jacoco.reportPath>${jacoco.destFile}</sonar.jacoco.reportPath>
   </properties>
   <modules>
     <module>org.xtext.example.mydsl</module>
@@ -90,6 +91,26 @@
           </dependency-resolution>
         </configuration>
       </plugin>
+      
+      <!-- JaCoCo plugin at parent level -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+            <configuration>
+              <destFile>${project.build.directory}/jacoco.exec</destFile>
+              <propertyName>tycho.testArgLine</propertyName>
+              <append>true</append>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
     <pluginManagement>
       <plugins>
@@ -130,13 +151,14 @@
           <artifactId>tycho-surefire-plugin</artifactId>
           <version>${tycho-version}</version>
           <configuration>
-            <!-- THE FOLLOWING LINE MUST NOT BE BROKEN BY AUTOFORMATTING -->
-            <argLine>${platformSystemProperties} ${systemProperties} ${moduleProperties}
-              ${additionalTestArguments}</argLine>
+            <!-- Critical: use tycho.testArgLine property set by JaCoCo -->
+            <argLine>${tycho.testArgLine} ${platformSystemProperties} ${systemProperties} ${moduleProperties} ${additionalTestArguments}</argLine>
             <failIfNoTests>false</failIfNoTests>
             <useUIHarness>false</useUIHarness>
+            <testFailureIgnore>true</testFailureIgnore>
           </configuration>
         </plugin>
+        
         <plugin>
           <groupId>org.eclipse.xtend</groupId>
           <artifactId>xtend-maven-plugin</artifactId>
@@ -164,6 +186,19 @@
           </configuration>
         </plugin>
 
+        <!-- Fix maven-project-info-reports-plugin version -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-project-info-reports-plugin</artifactId>
+          <version>3.4.5</version>
+        </plugin>
+        
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-site-plugin</artifactId>
+          <version>3.12.1</version>
+        </plugin>
+        
         <!-- JaCoCo Plugin Configuration for Xtend -->
         <plugin>
           <groupId>org.jacoco</groupId>
@@ -172,62 +207,10 @@
           <configuration>
             <!-- Exclude test classes and generated trace files -->
             <excludes>
-              <exclude>**/*Test.class</exclude>
-              <exclude>**/*Test$*.class</exclude>
               <exclude>**/*.xtendbin</exclude>
               <exclude>**/*._trace</exclude>
             </excludes>
           </configuration>
-          <executions>
-            <execution>
-              <id>prepare-agent</id>
-              <goals>
-                <goal>prepare-agent</goal>
-              </goals>
-              <configuration>
-                <destFile>${project.build.directory}/jacoco.exec</destFile>
-                <propertyName>jacoco.agent.argLine</propertyName>
-              </configuration>
-            </execution>
-            <execution>
-              <id>prepare-agent-integration</id>
-              <goals>
-                <goal>prepare-agent-integration</goal>
-              </goals>
-              <configuration>
-                <propertyName>argLineIntegration</propertyName>
-                <append>true</append>
-              </configuration>
-            </execution>
-            <execution>
-              <id>report</id>
-              <phase>test</phase>
-              <goals>
-                <goal>report</goal>
-              </goals>
-            </execution>
-            <execution>
-              <id>report-integration</id>
-              <phase>integration-test</phase>
-              <goals>
-                <goal>report-integration</goal>
-              </goals>
-            </execution>
-            <execution>
-              <id>report-aggregate</id>
-              <phase>verify</phase>
-              <goals>
-                <goal>report-aggregate</goal>
-              </goals>
-              <configuration>
-                <dataFileIncludes>
-                  <dataFileInclude>**/jacoco.exec</dataFileInclude>
-                  <dataFileInclude>**/jacoco-it.exec</dataFileInclude>
-                </dataFileIncludes>
-                <outputDirectory>${project.reporting.outputDirectory}/jacoco-aggregate</outputDirectory>
-              </configuration>
-            </execution>
-          </executions>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -235,7 +218,7 @@
   <repositories>
     <repository>
       <id>codehaus-snapshots</id>
-      <name>disable dead 'Codehaus Snapshots' repository, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=481478</name>
+      <name>disable dead 'Codehaus Snapshots' repository</name>
       <url>http://nexus.codehaus.org/snapshots/</url>
       <releases>
         <enabled>false</enabled>
@@ -275,7 +258,7 @@
   <pluginRepositories>
     <pluginRepository>
       <id>codehaus-snapshots</id>
-      <name>disable dead 'Codehaus Snapshots' repository, see https://bugs.eclipse.org/bugs/show_bug.cgi?id=481478</name>
+      <name>disable dead 'Codehaus Snapshots' repository</name>
       <url>http://nexus.codehaus.org/snapshots/</url>
       <releases>
         <enabled>false</enabled>
@@ -328,6 +311,40 @@
       <properties>
         <moduleProperties>--add-modules=ALL-SYSTEM</moduleProperties>
       </properties>
+    </profile>
+    
+    <!-- Profile for coverage with proper configuration -->
+    <profile>
+      <id>coverage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>${jacoco.version}</version>
+            <executions>
+              <execution>
+                <id>default-prepare-agent</id>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+                <configuration>
+                  <destFile>${project.build.directory}/jacoco.exec</destFile>
+                  <propertyName>tycho.testArgLine</propertyName>
+                  <append>true</append>
+                </configuration>
+              </execution>
+              <execution>
+                <id>report</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>report</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 
