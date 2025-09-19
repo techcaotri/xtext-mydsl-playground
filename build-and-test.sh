@@ -123,18 +123,26 @@ build_project() {
 		cd ..
 
 		# CRITICAL: Build main module sequentially to avoid race conditions
-		print_status "Building main module (sequential to avoid race conditions)..."
+		print_status "Building main module with proper compilation order..."
 		cd org.xtext.example.mydsl
-		mvn clean generate-sources -Dexec.skip=false -Pcoverage
-		mvn compile -DskipTests -Pcoverage
-		mvn install -DskipTests -Pcoverage
+
+    # Step 1: Clean if requested
+		if [ "$DO_CLEAN" = true ]; then
+			mvn clean
+		fi
+		
+		# Build with single thread to ensure proper ordering
+		# Use install directly - it will run all phases in correct order
+		print_status "Running full build lifecycle (this may take a moment)..."
+		mvn clean install -DskipTests -Pcoverage
+		
 		cd ..
 
-		# Build remaining modules in parallel
+		# Now build remaining modules (these can be parallel)
 		print_status "Building other modules..."
 		mvn install -DskipTests -T 12 -Pcoverage -pl !org.xtext.example.mydsl
 
-		print_status "Build completed"
+		print_status "Build completed successfully!"
 	else
 		print_warning "Skipping build phase"
 	fi
@@ -373,7 +381,7 @@ open_reports() {
 					if [ -f "${REPORTS_DIR}/site/surefire-report.html" ]; then
 						{ xdg-open "${REPORTS_DIR}/site/surefire-report.html" 2>/dev/null || print_warning "Could not open browser"; } &
 					else
-						(xdg-open "org.xtext.example.mydsl.tests/target/site/surefire-report.html" 2>/dev/null || print_warning "Could not open browser") &
+						{ xdg-open "org.xtext.example.mydsl.tests/target/site/surefire-report.html" 2>/dev/null || print_warning "Could not open browser"; } &
 					fi
 				fi
 			fi
