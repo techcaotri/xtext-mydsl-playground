@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build and Test Script for MyDsl Project
+# Build and Test Script for MyDsl Project with Test Suite Support
 # Generates test reports and code coverage with cross-module support
 # Linux OS Support Only
 
@@ -10,12 +10,72 @@ set -e # Exit on error
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
-echo "================================================"
-echo "MyDsl Build and Test Script"
-echo "================================================"
-echo ""
+# Decoration functions
+print_header() {
+    local header_text="$1"
+    local width=80
+    local padding=$(( (width - ${#header_text} - 2) / 2 ))
+    
+    echo ""
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+    printf "${CYAN}║${NC}%*s${WHITE}%s${NC}%*s${CYAN}║${NC}\n" $padding "" "$header_text" $((width - padding - ${#header_text})) ""
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
+
+print_subheader() {
+    local text="$1"
+    echo ""
+    echo -e "${BLUE}┌──────────────────────────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${BLUE}│ ${WHITE}$text${NC}"
+    echo -e "${BLUE}└──────────────────────────────────────────────────────────────────────────────┘${NC}"
+}
+
+print_step() {
+    local step_num="$1"
+    local step_text="$2"
+    echo ""
+    echo -e "${MAGENTA}[Step $step_num]${NC} ${WHITE}$step_text${NC}"
+    echo -e "${MAGENTA}────────────────────────────────────────────────────────────────────────${NC}"
+}
+
+print_status() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+print_suite() {
+    echo -e "${CYAN}[SUITE]${NC} $1"
+}
+
+print_test() {
+    echo -e "${MAGENTA}[TEST]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+print_failure() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+print_header "MyDsl Build and Test Script with Suite Support"
+echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
+echo "Working Directory: $(pwd)"
 
 # Configuration
 PROJECT_DIR="$(pwd)"
@@ -30,6 +90,9 @@ SKIP_BUILD=false
 SKIP_TESTS=false
 GENERATE_SITE=false
 PROFILE="test"
+TEST_SUITE=""
+LIST_SUITES=false
+DESCRIBE_SUITE=""
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -53,58 +116,126 @@ while [[ $# -gt 0 ]]; do
 		PROFILE="$2"
 		shift 2
 		;;
+	--suite)
+		TEST_SUITE="$2"
+		shift 2
+		;;
+	--list-suites)
+		LIST_SUITES=true
+		shift
+		;;
+	--describe-suite)
+		DESCRIBE_SUITE="$2"
+		shift 2
+		;;
 	--help)
+		print_header "Help Documentation"
 		echo "Usage: $0 [options]"
-		echo "Options:"
+		echo ""
+		echo "Build Options:"
 		echo "  --clean           Do the clean phase"
 		echo "  --skip-build      Skip the build phase"
 		echo "  --skip-tests      Skip test execution"
 		echo "  --generate-site   Generate Maven site with reports"
-		echo "  --profile <name>  Use specific Maven profile (default: test)"
-		echo "  --help           Show this help message"
+		echo "  --profile <n>     Use specific Maven profile (default: test)"
+		echo ""
+		echo "Test Suite Options:"
+		echo "  --suite <n>       Run specific test suite (unit, integration, smoke, all, fast, custom)"
+		echo "  --list-suites     List all available test suites"
+		echo "  --describe-suite <n>  Show detailed info about a test suite"
+		echo ""
+		echo "Examples:"
+		echo "  $0 --clean --suite unit            # Clean build and run unit tests"
+		echo "  $0 --list-suites                    # List available test suites"
+		echo "  $0 --describe-suite integration     # Show integration suite details"
+		echo "  $0 --skip-build --suite smoke       # Run smoke tests without building"
+		echo "  $0 --suite all --generate-site      # Run all tests and generate site"
 		exit 0
 		;;
 	*)
-		echo "Unknown option: $1"
+		print_error "Unknown option: $1"
 		echo "Use --help for usage information"
 		exit 1
 		;;
 	esac
 done
 
-# Function to print colored messages
-print_status() {
-	echo -e "${GREEN}[INFO]${NC} $1"
-}
-
-print_error() {
-	echo -e "${RED}[ERROR]${NC} $1"
-}
-
-print_warning() {
-	echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
 # Function to check if Maven is installed
 check_maven() {
+	print_step "0" "Checking Prerequisites"
+	
 	if ! command -v mvn &>/dev/null; then
-		print_error "Maven is not installed or not in PATH"
+		print_failure "Maven is not installed or not in PATH"
 		exit 1
 	fi
-	print_status "Maven version: $(mvn --version | head -n 1)"
+	print_success "Maven version: $(mvn --version | head -n 1)"
+	
+	# Check Java version
+	if command -v java &>/dev/null; then
+		print_success "Java version: $(java -version 2>&1 | head -n 1)"
+	fi
+}
+
+# Function to list test suites
+list_test_suites() {
+	print_header "Listing Available Test Suites"
+	
+	# Compile the test suite manager if needed
+	if [ ! -f "org.xtext.example.mydsl.tests/target/classes/org/xtext/example/mydsl/tests/suites/TestSuiteManager.class" ]; then
+		print_status "Compiling test suite manager..."
+		cd org.xtext.example.mydsl.tests
+		mvn compile -DskipTests -q
+		cd ..
+	fi
+	
+	# Run the test suite manager list command
+	cd org.xtext.example.mydsl.tests
+	java -cp "target/classes:target/test-classes:$(mvn dependency:build-classpath -DincludeScope=test -q -Dmdep.outputFile=/dev/stdout)" \
+		org.xtext.example.mydsl.tests.suites.TestSuiteManager list
+	cd ..
+}
+
+# Function to describe a test suite
+describe_test_suite() {
+	local suite_name="$1"
+	
+	print_header "Test Suite Description: $suite_name"
+	
+	if [ -z "$suite_name" ]; then
+		print_error "Suite name is required"
+		exit 1
+	fi
+	
+	# Compile if needed
+	if [ ! -f "org.xtext.example.mydsl.tests/target/classes/org/xtext/example/mydsl/tests/suites/TestSuiteManager.class" ]; then
+		print_status "Compiling test suite manager..."
+		cd org.xtext.example.mydsl.tests
+		mvn compile -DskipTests -q
+		cd ..
+	fi
+	
+	# Run the describe command
+	cd org.xtext.example.mydsl.tests
+	java -cp "target/classes:target/test-classes:$(mvn dependency:build-classpath -DincludeScope=test -q -Dmdep.outputFile=/dev/stdout)" \
+		org.xtext.example.mydsl.tests.suites.TestSuiteManager describe "$suite_name"
+	cd ..
 }
 
 # Function to clean the project
 clean_project() {
+	print_step "1" "Clean Phase"
+	
 	if [ "$DO_CLEAN" = true ]; then
 		print_status "Cleaning project (--clean specified)..."
 		mvn clean -T 12
+		print_success "Project cleaned"
 
 		# Clean and recreate report directories
 		print_status "Cleaning report directories..."
 		rm -rf "${REPORTS_DIR}" "${COVERAGE_DIR}"
 		mkdir -p "${REPORTS_DIR}"
 		mkdir -p "${COVERAGE_DIR}"
+		print_success "Report directories cleaned and recreated"
 	else
 		print_status "Skipping clean phase (use --clean to force cleaning)"
 		# Still ensure directories exist
@@ -115,148 +246,221 @@ clean_project() {
 
 # Function to build the project
 build_project() {
+	print_step "2" "Build Phase"
+	
 	if [ "$SKIP_BUILD" = false ]; then
-		print_status "Building project with coverage profile..."
-		echo "Building target platform..."
+		print_subheader "Building Target Platform"
 		cd org.xtext.example.mydsl.target
 		mvn clean install -DskipTests
+		print_success "Target platform built"
 		cd ..
 
-		# CRITICAL: Build main module sequentially to avoid race conditions
-		print_status "Building main module with proper compilation order..."
+		print_subheader "Building Main Module"
 		cd org.xtext.example.mydsl
 
-    # Step 1: Clean if requested
+		# Step 1: Clean if requested
 		if [ "$DO_CLEAN" = true ]; then
 			mvn clean
 		fi
 		
 		# Build with single thread to ensure proper ordering
-		# Use install directly - it will run all phases in correct order
 		print_status "Running full build lifecycle (this may take a moment)..."
 		mvn clean install -DskipTests -Pcoverage
+		print_success "Main module built"
 		
 		cd ..
 
-		# Now build remaining modules (these can be parallel)
-		print_status "Building other modules..."
+		print_subheader "Building Other Modules"
 		mvn install -DskipTests -T 12 -Pcoverage -pl !org.xtext.example.mydsl
-
-		print_status "Build completed successfully!"
+		
+		print_success "Build phase completed successfully!"
 	else
 		print_warning "Skipping build phase"
 	fi
 }
 
-# Function to run tests with cross-module coverage
+# Function to run tests with specific suite
+run_tests_with_suite() {
+	local suite_name="$1"
+	
+	print_step "3" "Test Execution Phase"
+	
+	if [ -z "$suite_name" ]; then
+		# No suite specified, run default
+		run_tests
+		return
+	fi
+	
+	print_subheader "Running Test Suite: $suite_name"
+	
+	TEST_FAILED=false
+	
+	# Determine which suite class to run based on suite name
+	case "$suite_name" in
+		"all")
+			print_status "Running all tests with pattern-based discovery..."
+			# Use pattern-based test discovery for all tests
+			mvn verify -T 12 \
+				-Pcoverage \
+				-Dmaven.test.failure.ignore=true \
+				-DfailIfNoTests=false \
+				-Dtest="**/*Test,**/*Tests,**/Test*" \
+				-DfailIfNoTests=false || TEST_FAILED=true
+			;;
+		"unit")
+			print_status "Running unit tests..."
+			mvn verify -T 12 \
+				-Pcoverage \
+				-Dmaven.test.failure.ignore=true \
+				-DfailIfNoTests=false \
+				-Dtest="**/TemplateLoader*Test" || TEST_FAILED=true
+			;;
+		"integration")
+			print_status "Running integration tests..."
+			mvn verify -T 12 \
+				-Pcoverage \
+				-Dmaven.test.failure.ignore=true \
+				-DfailIfNoTests=false \
+				-Dtest="**/Generator*Test" || TEST_FAILED=true
+			;;
+		*)
+			print_error "Unknown suite: $suite_name"
+			print_warning "Available suites: unit, integration, smoke, all, fast, custom-generator"
+			exit 1
+			;;
+	esac
+	
+	# Generate reports
+	generate_coverage_reports
+	
+	if [ "$TEST_FAILED" = true ]; then
+		print_failure "Some tests failed in suite: $suite_name"
+		print_warning "Reports have been generated despite test failures."
+	else
+		print_success "All tests passed in suite: $suite_name!"
+	fi
+}
+
+# Function to run tests (default, without suite)
 run_tests() {
+	print_step "3" "Test Execution Phase (All Tests)"
+	
 	if [ "$SKIP_TESTS" = false ]; then
-		print_status "Running tests with cross-module coverage..."
+		print_status "Discovering and running all test classes..."
 
 		TEST_FAILED=false
 
-		# Run tests with JaCoCo coverage
+		# Run tests with JaCoCo coverage using wildcard patterns
 		print_status "Executing tests with JaCoCo coverage..."
 		mvn verify -T 12 \
 			-Pcoverage \
 			-Dmaven.test.failure.ignore=true \
-			-DfailIfNoTests=false || TEST_FAILED=true
+			-DfailIfNoTests=false \
+			-Dtest="**/*Test,**/*Tests,**/Test*" || TEST_FAILED=true
 
-		# Generate coverage reports
-		print_status "Generating JaCoCo coverage reports..."
-
-		# Generate individual module reports
-		cd org.xtext.example.mydsl
-		mvn jacoco:report -Pcoverage -Dmaven.test.failure.ignore=true || true
-		cd ..
-
-		cd org.xtext.example.mydsl.tests
-		mvn jacoco:report -Pcoverage -Dmaven.test.failure.ignore=true || true
-
-		# Generate surefire HTML report
-		print_status "Generating Surefire HTML report..."
-		mvn surefire-report:report -T 12 -Dmaven.test.failure.ignore=true || true
-
-		# Copy test reports
-		if [ -d "target/surefire-reports" ]; then
-			cp -r target/surefire-reports "${REPORTS_DIR}/"
-			print_status "Surefire test reports copied to reports directory"
-		fi
-
-		# Copy surefire HTML report to reports directory (but exclude jacoco directories)
-		if [ -f "target/site/surefire-report.html" ]; then
-			# Only copy surefire-related files, not coverage reports
-			mkdir -p "${REPORTS_DIR}/site"
-			cp target/site/surefire-report.html "${REPORTS_DIR}/site/" 2>/dev/null || true
-			cp -r target/site/css "${REPORTS_DIR}/site/" 2>/dev/null || true
-			cp -r target/site/images "${REPORTS_DIR}/site/" 2>/dev/null || true
-			# Explicitly exclude jacoco directories
-			find target/site -maxdepth 1 -name "*.html" ! -name "*jacoco*" -exec cp {} "${REPORTS_DIR}/site/" \; 2>/dev/null || true
-			print_status "Surefire HTML report copied to reports directory"
-		fi
-
-		# Copy coverage report
-		if [ -d "target/site/jacoco" ]; then
-			cp -r target/site/jacoco "${COVERAGE_DIR}/jacoco-test-module"
-			print_status "Test module coverage report copied to coverage directory"
-		fi
-
-		cd ..
-
-		# Generate aggregate coverage report
-		if [ -d "jacoco-aggregate-report" ]; then
-			print_status "Generating aggregate coverage report (cross-module)..."
-
-			# First ensure execution data is collected
-			mkdir -p jacoco-aggregate-report/target
-
-			# Collect all jacoco.exec files
-			find . -name "jacoco.exec" -type f | while read exec_file; do
-				print_status "Found execution data: $exec_file"
-				cp "$exec_file" "jacoco-aggregate-report/target/jacoco-$(basename $(dirname $(dirname $exec_file))).exec"
-			done
-
-			# Merge execution data files
-			if [ -f "org.xtext.example.mydsl.tests/target/jacoco.exec" ]; then
-				cp org.xtext.example.mydsl.tests/target/jacoco.exec jacoco-aggregate-report/target/jacoco-merged.exec
-			fi
-
-			# Generate aggregate report
-			mvn verify -pl jacoco-aggregate-report -am -T 12 \
-				-Pcoverage \
-				-Dmaven.test.failure.ignore=true || true
-
-			# Copy aggregate report
-			if [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
-				cp -r jacoco-aggregate-report/target/site/jacoco-aggregate "${COVERAGE_DIR}/"
-				print_status "Aggregate cross-module coverage report copied to coverage directory"
-			fi
-		fi
+		generate_coverage_reports
 
 		if [ "$TEST_FAILED" = true ]; then
-			print_error "Some tests failed. Check reports for details."
+			print_failure "Some tests failed. Check reports for details."
 			print_warning "Reports have been generated despite test failures."
 		else
-			print_status "All tests passed!"
+			print_success "All tests passed!"
 		fi
 	else
 		print_warning "Skipping test execution"
 	fi
 }
 
+# Function to generate coverage reports
+generate_coverage_reports() {
+	print_step "4" "Coverage Report Generation"
+	
+	print_subheader "Generating Individual Module Reports"
+	
+	cd org.xtext.example.mydsl
+	mvn jacoco:report -Pcoverage -Dmaven.test.failure.ignore=true || true
+	print_success "Main module coverage report generated"
+	cd ..
+
+	cd org.xtext.example.mydsl.tests
+	mvn jacoco:report -Pcoverage -Dmaven.test.failure.ignore=true || true
+
+	# Generate surefire HTML report
+	print_subheader "Generating Surefire HTML Report"
+	mvn surefire-report:report -T 12 -Dmaven.test.failure.ignore=true || true
+	print_success "Surefire report generated"
+
+	# Copy test reports
+	if [ -d "target/surefire-reports" ]; then
+		cp -r target/surefire-reports "${REPORTS_DIR}/"
+		print_success "Surefire test reports copied to reports directory"
+	fi
+
+	# Copy surefire HTML report
+	if [ -f "target/site/surefire-report.html" ]; then
+		mkdir -p "${REPORTS_DIR}/site"
+		cp target/site/surefire-report.html "${REPORTS_DIR}/site/" 2>/dev/null || true
+		cp -r target/site/css "${REPORTS_DIR}/site/" 2>/dev/null || true
+		cp -r target/site/images "${REPORTS_DIR}/site/" 2>/dev/null || true
+		find target/site -maxdepth 1 -name "*.html" ! -name "*jacoco*" -exec cp {} "${REPORTS_DIR}/site/" \; 2>/dev/null || true
+		print_success "Surefire HTML report copied to reports directory"
+	fi
+
+	# Copy coverage report
+	if [ -d "target/site/jacoco" ]; then
+		cp -r target/site/jacoco "${COVERAGE_DIR}/jacoco-test-module"
+		print_success "Test module coverage report copied to coverage directory"
+	fi
+
+	cd ..
+
+	print_subheader "Generating Aggregate Coverage Report"
+	
+	if [ -d "jacoco-aggregate-report" ]; then
+		print_status "Generating aggregate coverage report (cross-module)..."
+
+		mkdir -p jacoco-aggregate-report/target
+
+		# Collect all jacoco.exec files
+		find . -name "jacoco.exec" -type f | while read exec_file; do
+			print_status "Found execution data: $exec_file"
+			cp "$exec_file" "jacoco-aggregate-report/target/jacoco-$(basename $(dirname $(dirname $exec_file))).exec"
+		done
+
+		# Generate aggregate report
+		mvn verify -pl jacoco-aggregate-report -am -T 12 \
+			-Pcoverage \
+			-Dmaven.test.failure.ignore=true || true
+
+		# Copy aggregate report
+		if [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
+			cp -r jacoco-aggregate-report/target/site/jacoco-aggregate "${COVERAGE_DIR}/"
+			print_success "Aggregate cross-module coverage report copied to coverage directory"
+		fi
+	fi
+}
+
 # Function to generate Maven site
 generate_site() {
 	if [ "$GENERATE_SITE" = true ]; then
+		print_step "5" "Site Generation Phase"
+		
 		print_status "Generating Maven site with reports..."
 		mvn site -T 12 -Dmaven.test.failure.ignore=true || true
-
-		print_status "Site generated at: ${PROJECT_DIR}/target/site/index.html"
+		print_success "Site generated at: ${PROJECT_DIR}/target/site/index.html"
 	fi
 }
 
 # Function to generate summary report
 generate_summary() {
-	print_status "Generating summary report..."
+	print_step "6" "Summary Report Generation"
+	
+	local suite_info=""
+	if [ -n "$TEST_SUITE" ]; then
+		suite_info="Test Suite: ${TEST_SUITE}"
+	else
+		suite_info="Test Suite: All Tests (default)"
+	fi
 
 	SUMMARY_FILE="${REPORTS_DIR}/test-summary-${TIMESTAMP}.txt"
 
@@ -268,6 +472,7 @@ Generated: $(date)
 
 Project: MyDsl Xtext Project
 Profile: ${PROFILE}
+${suite_info}
 
 Test Results:
 EOF
@@ -292,10 +497,6 @@ EOF
 		echo "- Aggregate Cross-Module Coverage: ${COVERAGE_DIR}/jacoco-aggregate/index.html" >>"${SUMMARY_FILE}"
 	fi
 
-	if [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
-		echo "- Aggregate (Original Location): jacoco-aggregate-report/target/site/jacoco-aggregate/index.html" >>"${SUMMARY_FILE}"
-	fi
-
 	echo "" >>"${SUMMARY_FILE}"
 
 	# Add test statistics if available
@@ -315,13 +516,14 @@ EOF
 		echo "Skipped: ${SKIPPED_TESTS}" >>"${SUMMARY_FILE}"
 	fi
 
+	print_success "Summary report generated: ${SUMMARY_FILE}"
 	cat "${SUMMARY_FILE}"
 }
 
 # Function to archive reports
 archive_reports() {
-	print_status "Archiving test reports..."
-
+	print_step "7" "Report Archiving"
+	
 	tar -czf "${REPORT_ARCHIVE}" \
 		-C "${PROJECT_DIR}" \
 		"test-reports" \
@@ -329,18 +531,22 @@ archive_reports() {
 		2>/dev/null || print_warning "Could not create full archive"
 
 	if [ -f "${REPORT_ARCHIVE}" ]; then
-		print_status "Reports archived to: ${REPORT_ARCHIVE}"
+		print_success "Reports archived to: ${REPORT_ARCHIVE}"
 	fi
 }
 
 # Function to open reports in browser
 open_reports() {
 	if [ "$SKIP_TESTS" = false ]; then
-		echo ""
-		print_status "Test and coverage reports are ready!"
-		echo ""
+		print_header "Test and Coverage Reports Ready"
+		
 		echo "Available reports:"
 
+		if [ -n "$TEST_SUITE" ]; then
+			echo -e "${CYAN}TEST SUITE: ${TEST_SUITE}${NC}"
+		fi
+
+		echo ""
 		echo "TEST REPORTS:"
 		if [ -f "${REPORTS_DIR}/site/surefire-report.html" ]; then
 			echo "  • Surefire HTML: ${REPORTS_DIR}/site/surefire-report.html"
@@ -352,10 +558,6 @@ open_reports() {
 		echo "COVERAGE REPORTS:"
 		[ -d "${COVERAGE_DIR}/jacoco-test-module" ] && echo "  • Test Module Coverage: ${COVERAGE_DIR}/jacoco-test-module/index.html"
 		[ -d "${COVERAGE_DIR}/jacoco-aggregate" ] && echo "  • Aggregate Cross-Module Coverage: ${COVERAGE_DIR}/jacoco-aggregate/index.html"
-
-		if [ ! -d "${COVERAGE_DIR}/jacoco-aggregate" ] && [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
-			echo "  • Aggregate (Original location): jacoco-aggregate-report/target/site/jacoco-aggregate/index.html"
-		fi
 
 		echo ""
 		read -p "Would you like to open the coverage reports in your browser? (y/n): " -n 1 -r
@@ -393,22 +595,59 @@ open_reports() {
 
 # Main execution
 main() {
-	print_status "Starting build and test process..."
+	# Handle special commands first
+	if [ "$LIST_SUITES" = true ]; then
+		check_maven
+		list_test_suites
+		exit 0
+	fi
+	
+	if [ -n "$DESCRIBE_SUITE" ]; then
+		check_maven
+		describe_test_suite "$DESCRIBE_SUITE"
+		exit 0
+	fi
+	
+	# Normal build and test flow
+	print_header "Build and Test Process Starting"
+	
+	if [ -n "$TEST_SUITE" ]; then
+		print_suite "Selected test suite: $TEST_SUITE"
+	fi
+	
+	echo "Configuration:"
+	echo "  Clean: $DO_CLEAN"
+	echo "  Skip Build: $SKIP_BUILD"
+	echo "  Skip Tests: $SKIP_TESTS"
+	echo "  Generate Site: $GENERATE_SITE"
+	echo "  Profile: $PROFILE"
+	[ -n "$TEST_SUITE" ] && echo "  Test Suite: $TEST_SUITE"
 	echo ""
 
 	check_maven
 	clean_project
 	build_project
-	run_tests
+	
+	if [ "$SKIP_TESTS" = false ]; then
+		if [ -n "$TEST_SUITE" ]; then
+			run_tests_with_suite "$TEST_SUITE"
+		else
+			run_tests
+		fi
+	fi
+	
 	generate_site
 	generate_summary
 	archive_reports
 	open_reports
 
-	echo ""
-	echo "================================================"
-	print_status "Build and test process completed!"
-	echo "================================================"
+	print_header "Build and Test Process Completed"
+	
+	if [ -n "$TEST_SUITE" ]; then
+		print_success "Completed for suite: $TEST_SUITE"
+	else
+		print_success "All processes completed successfully!"
+	fi
 }
 
 # Run main function

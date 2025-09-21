@@ -45,7 +45,7 @@
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
         <version>${jacoco.version}</version>
-          <!-- Exclude generated and test files -->
+        <!-- Exclude generated and test files -->
         <executions>
           <execution>
             <id>prepare-agent</id>
@@ -96,6 +96,14 @@
           <argLine>${tycho.testArgLine}</argLine>
           <testFailureIgnore>true</testFailureIgnore>
           <useUIHarness>false</useUIHarness>
+          <!-- CRITICAL: Tell Tycho to use JUnit 5 -->
+          <providerHint>junit5</providerHint>
+          <includes>
+            <include>**/*Test.class</include>
+            <include>**/*Tests.class</include>
+            <include>**/Test*.class</include>
+            <include>**/AllTests.java</include>
+          </includes>
         </configuration>
       </plugin>
 

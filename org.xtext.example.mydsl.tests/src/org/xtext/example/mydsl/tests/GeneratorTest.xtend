@@ -1,7 +1,10 @@
 package org.xtext.example.mydsl.tests
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Tags
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.eclipse.xtext.testing.InjectWith
 import org.eclipse.xtext.testing.extensions.InjectionExtension
 import org.eclipse.xtext.generator.InMemoryFileSystemAccess
@@ -16,14 +19,17 @@ import org.eclipse.xtext.generator.GeneratorContext
 import com.google.inject.Inject
 import org.junit.jupiter.api.^extension.ExtendWith
 
-import static org.junit.jupiter.api.Assertions.assertNotNull
-import static org.junit.jupiter.api.Assertions.assertEquals
-import static org.junit.jupiter.api.Assertions.assertTrue
-import static org.junit.jupiter.api.Assertions.fail
+import static org.junit.jupiter.api.Assertions.*
 import org.xtext.example.mydsl.generator.MyDslGenerator
 
+/**
+ * Test class for code generation functionality
+ * Tests both C++ and Protobuf generation
+ */
 @ExtendWith(InjectionExtension)
 @InjectWith(MyDslInjectorProvider)
+@DisplayName("Code Generator Tests")
+@Tags(#[@Tag("integration"), @Tag("generator"), @Tag("codegen")])
 class GeneratorTest {
     @Inject ParseHelper<Model> parseHelper
     @Inject MyDslGenerator generator
@@ -38,6 +44,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("cpp")
+    @Tag("struct")
+    @DisplayName("Should generate C++ struct from DSL")
     def void testStructGeneration() {
         val modelText = '''
             define BasicTypes {
@@ -87,6 +96,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("cpp")
+    @Tag("enum")
+    @DisplayName("Should generate C++ enum from DSL")
     def void testEnumGeneration() {
         val modelText = '''
             public enumeration Status {
@@ -123,6 +135,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("protobuf")
+    @Tag("package")
+    @DisplayName("Should generate code with package structure")
     def void testPackageGeneration() {
         val modelText = '''
             define BasicTypes {
@@ -166,6 +181,8 @@ class GeneratorTest {
     }
     
     @Test
+    @Tags(#[@Tag("complex"), @Tag("slow")])
+    @DisplayName("Should handle complex model with multiple types")
     def void testComplexModel() {
         val modelText = '''
             define BasicTypes {
@@ -238,6 +255,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("inheritance")
+    @Tag("cpp")
+    @DisplayName("Should handle struct inheritance properly")
     def void testInheritance() {
         val modelText = '''
             define BasicTypes {
@@ -283,6 +303,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("array")
+    @Tag("cpp")
+    @DisplayName("Should handle array field declarations")
     def void testArrayType() {
         val modelText = '''
             define BasicTypes {
@@ -330,6 +353,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("typedef")
+    @Tag("cpp")
+    @DisplayName("Should handle typedef declarations")
     def void testTypedef() {
         val modelText = '''
             define BasicTypes {
@@ -362,6 +388,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("array")
+    @Tag("typedef")
+    @DisplayName("Should handle array type declarations")
     def void testArrayDeclaration() {
         val modelText = '''
             define BasicTypes {
@@ -402,6 +431,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("annotations")
+    @Tag("documentation")
+    @DisplayName("Should handle annotations and comments")
     def void testAnnotations() {
         // Try without spaces in annotations first
         val modelText = '''
@@ -447,6 +479,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("enum")
+    @Tag("fast")
+    @DisplayName("Should handle enum without explicit values")
     def void testEnumWithoutValues() {
         val modelText = '''
             public enumeration SimpleEnum {
@@ -478,6 +513,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("initialization")
+    @Tag("struct")
+    @DisplayName("Should handle field initializers")
     def void testFieldWithInitializer() {
         val modelText = '''
             define BasicTypes {
@@ -522,6 +560,9 @@ class GeneratorTest {
     }
     
     @Test
+    @Tag("package")
+    @Tag("complex")
+    @DisplayName("Should handle multiple packages")
     def void testMultiplePackages() {
         val modelText = '''
             define BasicTypes {

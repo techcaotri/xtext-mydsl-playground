@@ -1,10 +1,11 @@
 package org.xtext.example.mydsl.tests
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Tags
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DisplayName
-import org.junit.jupiter.api.Tag
 import org.xtext.example.mydsl.generator.TemplateLoader
 import java.nio.file.Path
 import java.nio.file.Files
@@ -20,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.*
  * 
  * This test class is included in: UnitTestSuite, AllTestsSuite, FastTestsSuite
  */
-@DisplayName("TemplateLoader Unit Tests")
+@DisplayName("Template Loader Unit Tests")
+@Tags(#[@Tag("unit"), @Tag("fast"), @Tag("template")])
 class TemplateLoaderTest {
     
     TemplateLoader templateLoader
@@ -61,6 +63,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("io")
     @DisplayName("Should load template from filesystem")
     def void testLoadTemplateFromFileSystem() {
         // Create a test template file
@@ -79,6 +82,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("cache")
     @DisplayName("Should cache templates when caching is enabled")
     def void testTemplateCaching() {
         // Create a test template
@@ -108,6 +112,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("cache")
     @DisplayName("Should not cache when caching is disabled")
     def void testNoCachingWhenDisabled() {
         val templatePath = tempDir.resolve("nocache.template")
@@ -131,6 +136,8 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("variables")
+    @Tag("quick")
     @DisplayName("Should process template with variable replacement")
     def void testProcessTemplate() {
         // Create template with variables
@@ -161,6 +168,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("variables")
     @DisplayName("Should handle null values in variable map")
     def void testProcessTemplateWithNullValues() {
         val templatePath = tempDir.resolve("nulltest.template")
@@ -179,6 +187,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("error-handling")
     @DisplayName("Should return empty string for non-existent template")
     def void testNonExistentTemplate() {
         templateLoader.setTemplateBasePath(tempDir.toString() + "/")
@@ -190,6 +199,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("io")
     @DisplayName("Should check if template exists")
     def void testTemplateExists() {
         val existingPath = tempDir.resolve("existing.template")
@@ -202,6 +212,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("path-handling")
     @DisplayName("Should handle leading slash in template path")
     def void testLeadingSlashHandling() {
         val templatePath = tempDir.resolve("test.template")
@@ -222,6 +233,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("io")
     @DisplayName("Should handle nested directory templates")
     def void testNestedDirectoryTemplates() {
         // Create nested directory structure
@@ -242,6 +254,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("edge-case")
     @DisplayName("Should handle empty template")
     def void testEmptyTemplate() {
         val templatePath = tempDir.resolve("empty.template")
@@ -257,6 +270,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("variables")
     @DisplayName("Should handle template with no variables")
     def void testTemplateWithNoVariables() {
         val templatePath = tempDir.resolve("static.template")
@@ -270,6 +284,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("variables")
     @DisplayName("Should handle multiple occurrences of same variable")
     def void testMultipleVariableOccurrences() {
         val templatePath = tempDir.resolve("multi.template")
@@ -286,6 +301,7 @@ class TemplateLoaderTest {
     }
     
     @Test
+    @Tag("structure")
     @DisplayName("Should preserve template structure")
     def void testPreserveTemplateStructure() {
         val templatePath = tempDir.resolve("structured.template")
