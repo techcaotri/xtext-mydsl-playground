@@ -18,59 +18,59 @@ NC='\033[0m' # No Color
 
 # Decoration functions
 print_header() {
-    local header_text="$1"
-    local width=80
-    local padding=$(( (width - ${#header_text} - 2) / 2 ))
-    
-    echo ""
-    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
-    printf "${CYAN}║${NC}%*s${WHITE}%s${NC}%*s${CYAN}║${NC}\n" $padding "" "$header_text" $((width - padding - ${#header_text} - 2)) ""
-    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+	local header_text="$1"
+	local width=80
+	local padding=$(((width - ${#header_text} - 2) / 2))
+
+	echo ""
+	echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
+	printf "${CYAN}║${NC}%*s${WHITE}%s${NC}%*s${CYAN}║${NC}\n" $padding "" "$header_text" $((width - padding - ${#header_text} - 2)) ""
+	echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
+	echo ""
 }
 
 print_subheader() {
-    local text="$1"
-    echo ""
-    echo -e "${BLUE}┌──────────────────────────────────────────────────────────────────────────────┐${NC}"
-    echo -e "${BLUE}│ ${WHITE}$text${NC}"
-    echo -e "${BLUE}└──────────────────────────────────────────────────────────────────────────────┘${NC}"
+	local text="$1"
+	echo ""
+	echo -e "${BLUE}┌──────────────────────────────────────────────────────────────────────────────┐${NC}"
+	echo -e "${BLUE}│ ${WHITE}$text${NC}"
+	echo -e "${BLUE}└──────────────────────────────────────────────────────────────────────────────┘${NC}"
 }
 
 print_step() {
-    local step_num="$1"
-    local step_text="$2"
-    echo ""
-    echo -e "${MAGENTA}[Step $step_num]${NC} ${WHITE}$step_text${NC}"
-    echo -e "${MAGENTA}────────────────────────────────────────────────────────────────────────${NC}"
+	local step_num="$1"
+	local step_text="$2"
+	echo ""
+	echo -e "${MAGENTA}[Step $step_num]${NC} ${WHITE}$step_text${NC}"
+	echo -e "${MAGENTA}────────────────────────────────────────────────────────────────────────${NC}"
 }
 
 print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+	echo -e "${GREEN}[INFO]${NC} $1"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+	echo -e "${RED}[ERROR]${NC} $1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+	echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
 print_suite() {
-    echo -e "${CYAN}[SUITE]${NC} $1"
+	echo -e "${CYAN}[SUITE]${NC} $1"
 }
 
 print_test() {
-    echo -e "${MAGENTA}[TEST]${NC} $1"
+	echo -e "${MAGENTA}[TEST]${NC} $1"
 }
 
 print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+	echo -e "${GREEN}✓${NC} $1"
 }
 
 print_failure() {
-    echo -e "${RED}✗${NC} $1"
+	echo -e "${RED}✗${NC} $1"
 }
 
 print_header "MyDsl Build and Test Script with Suite Support"
@@ -83,6 +83,8 @@ REPORTS_DIR="${PROJECT_DIR}/test-reports"
 COVERAGE_DIR="${PROJECT_DIR}/coverage-reports"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 REPORT_ARCHIVE="${PROJECT_DIR}/test-results-${TIMESTAMP}.tar.gz"
+TEST_CONFIG_CLASS="org.xtext.example.mydsl.tests.TestConfiguration"
+TEST_SUITE_MGR_CLASS="org.xtext.example.mydsl.tests.suites.TestSuiteManager"
 
 # Parse command line arguments
 DO_CLEAN=false
@@ -93,6 +95,7 @@ PROFILE="test"
 TEST_SUITE=""
 LIST_SUITES=false
 DESCRIBE_SUITE=""
+EXPORT_CONFIG=false
 
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -128,21 +131,26 @@ while [[ $# -gt 0 ]]; do
 		DESCRIBE_SUITE="$2"
 		shift 2
 		;;
+	--export-config)
+		EXPORT_CONFIG=true
+		shift
+		;;
 	--help)
 		print_header "Help Documentation"
 		echo "Usage: $0 [options]"
 		echo ""
 		echo "Build Options:"
-		echo "  --clean           Do the clean phase"
-		echo "  --skip-build      Skip the build phase"
-		echo "  --skip-tests      Skip test execution"
-		echo "  --generate-site   Generate Maven site with reports"
-		echo "  --profile <n>     Use specific Maven profile (default: test)"
+		echo "  --clean              Do the clean phase"
+		echo "  --skip-build         Skip the build phase"
+		echo "  --skip-tests         Skip test execution"
+		echo "  --generate-site      Generate Maven site with reports"
+		echo "  --profile <n>        Use specific Maven profile (default: test)"
 		echo ""
 		echo "Test Suite Options:"
-		echo "  --suite <n>       Run specific test suite (unit, integration, smoke, all, fast, custom)"
-		echo "  --list-suites     List all available test suites"
-		echo "  --describe-suite <n>  Show detailed info about a test suite"
+		echo "  --suite <n>          Run specific test suite (defined in TestConfiguration.xtend)"
+		echo "  --list-suites        List all available test suites"
+		echo "  --describe-suite <n> Show detailed info about a test suite"
+		echo "  --export-config      Export test configuration as properties"
 		echo ""
 		echo "Examples:"
 		echo "  $0 --clean --suite unit            # Clean build and run unit tests"
@@ -163,68 +171,89 @@ done
 # Function to check if Maven is installed
 check_maven() {
 	print_step "0" "Checking Prerequisites"
-	
+
 	if ! command -v mvn &>/dev/null; then
 		print_failure "Maven is not installed or not in PATH"
 		exit 1
 	fi
 	print_success "Maven version: $(mvn --version | head -n 1)"
-	
+
 	# Check Java version
 	if command -v java &>/dev/null; then
 		print_success "Java version: $(java -version 2>&1 | head -n 1)"
 	fi
 }
 
-# Function to list test suites
+# Function to get test pattern from TestConfiguration
+get_test_pattern() {
+	local suite_name="$1"
+
+	# Ensure test configuration is compiled
+	if [ ! -f "org.xtext.example.mydsl.tests/target/classes/org/xtext/example/mydsl/tests/TestConfiguration.class" ]; then
+		print_status "Compiling test configuration..."
+		cd org.xtext.example.mydsl.tests
+		mvn compile -DskipTests
+		cd ..
+	fi
+
+	# Get pattern from TestSuiteManager (which uses TestConfiguration)
+	cd org.xtext.example.mydsl.tests
+	local pattern=$(java -cp "target/classes:target/test-classes:$(mvn dependency:build-classpath -DincludeScope=test -q -Dmdep.outputFile=/dev/stdout)" \
+		${TEST_SUITE_MGR_CLASS} get-pattern "$suite_name" 2>/dev/null)
+	cd ..
+
+	echo "$pattern"
+}
+
+# Function to list test suites (updated to use TestConfiguration)
 list_test_suites() {
-	print_header "Listing Available Test Suites"
-	
-	# Compile the test suite manager if needed
-	if [ ! -f "org.xtext.example.mydsl.tests/target/classes/org/xtext/example/mydsl/tests/suites/TestSuiteManager.class" ]; then
-		print_status "Compiling test suite manager..."
+	print_header "Available Test Suites"
+
+	# Compile if needed
+	if [ ! -f "org.xtext.example.mydsl.tests/target/classes/org/xtext/example/mydsl/tests/TestConfiguration.class" ]; then
+		print_status "Compiling test configuration..."
 		cd org.xtext.example.mydsl.tests
 		mvn compile -DskipTests -q
 		cd ..
 	fi
-	
-	# Run the test suite manager list command
+
+	# List suites using TestSuiteManager
 	cd org.xtext.example.mydsl.tests
 	java -cp "target/classes:target/test-classes:$(mvn dependency:build-classpath -DincludeScope=test -q -Dmdep.outputFile=/dev/stdout)" \
-		org.xtext.example.mydsl.tests.suites.TestSuiteManager list
+		${TEST_SUITE_MGR_CLASS} list
 	cd ..
 }
 
 # Function to describe a test suite
 describe_test_suite() {
 	local suite_name="$1"
-	
+
 	print_header "Test Suite Description: $suite_name"
-	
+
 	if [ -z "$suite_name" ]; then
 		print_error "Suite name is required"
 		exit 1
 	fi
-	
+
 	# Compile if needed
-	if [ ! -f "org.xtext.example.mydsl.tests/target/classes/org/xtext/example/mydsl/tests/suites/TestSuiteManager.class" ]; then
-		print_status "Compiling test suite manager..."
+	if [ ! -f "org.xtext.example.mydsl.tests/target/classes/org/xtext/example/mydsl/tests/TestConfiguration.class" ]; then
+		print_status "Compiling test configuration..."
 		cd org.xtext.example.mydsl.tests
 		mvn compile -DskipTests -q
 		cd ..
 	fi
-	
-	# Run the describe command
+
+	# Describe suite
 	cd org.xtext.example.mydsl.tests
 	java -cp "target/classes:target/test-classes:$(mvn dependency:build-classpath -DincludeScope=test -q -Dmdep.outputFile=/dev/stdout)" \
-		org.xtext.example.mydsl.tests.suites.TestSuiteManager describe "$suite_name"
+		${TEST_SUITE_MGR_CLASS} describe "$suite_name"
 	cd ..
 }
 
 # Function to clean the project
 clean_project() {
 	print_step "1" "Clean Phase"
-	
+
 	if [ "$DO_CLEAN" = true ]; then
 		print_status "Cleaning project (--clean specified)..."
 		mvn clean -T 12
@@ -247,7 +276,7 @@ clean_project() {
 # Function to build the project
 build_project() {
 	print_step "2" "Build Phase"
-	
+
 	if [ "$SKIP_BUILD" = false ]; then
 		print_subheader "Building Target Platform"
 		cd org.xtext.example.mydsl.target
@@ -262,17 +291,17 @@ build_project() {
 		if [ "$DO_CLEAN" = true ]; then
 			mvn clean
 		fi
-		
+
 		# Build with single thread to ensure proper ordering
 		print_status "Running full build lifecycle (this may take a moment)..."
 		mvn clean install -DskipTests -Pcoverage
 		print_success "Main module built"
-		
+
 		cd ..
 
 		print_subheader "Building Other Modules"
 		mvn install -DskipTests -T 12 -Pcoverage -pl !org.xtext.example.mydsl
-		
+
 		print_success "Build phase completed successfully!"
 	else
 		print_warning "Skipping build phase"
@@ -282,57 +311,40 @@ build_project() {
 # Function to run tests with specific suite
 run_tests_with_suite() {
 	local suite_name="$1"
-	
+
 	print_step "3" "Test Execution Phase"
-	
+
 	if [ -z "$suite_name" ]; then
-		# No suite specified, run default
-		run_tests
-		return
+		# No suite specified, run default (all tests)
+		suite_name="all"
 	fi
-	
+
 	print_subheader "Running Test Suite: $suite_name"
-	
+
+	# Get test pattern from central configuration
+	local test_pattern=$(get_test_pattern "$suite_name")
+
+	if [ -z "$test_pattern" ]; then
+		print_error "Unknown suite: $suite_name"
+		print_warning "Use --list-suites to see available suites"
+		exit 1
+	fi
+
+	print_status "Test pattern: $test_pattern"
+
 	TEST_FAILED=false
-	
-	# Determine which suite class to run based on suite name
-	case "$suite_name" in
-		"all")
-			print_status "Running all tests with pattern-based discovery..."
-			# Use pattern-based test discovery for all tests
-			mvn verify -T 12 \
-				-Pcoverage \
-				-Dmaven.test.failure.ignore=true \
-				-DfailIfNoTests=false \
-				-Dtest="**/*Test,**/*Tests,**/Test*" \
-				-DfailIfNoTests=false || TEST_FAILED=true
-			;;
-		"unit")
-			print_status "Running unit tests..."
-			mvn verify -T 12 \
-				-Pcoverage \
-				-Dmaven.test.failure.ignore=true \
-				-DfailIfNoTests=false \
-				-Dtest="**/TemplateLoader*Test" || TEST_FAILED=true
-			;;
-		"integration")
-			print_status "Running integration tests..."
-			mvn verify -T 12 \
-				-Pcoverage \
-				-Dmaven.test.failure.ignore=true \
-				-DfailIfNoTests=false \
-				-Dtest="**/Generator*Test" || TEST_FAILED=true
-			;;
-		*)
-			print_error "Unknown suite: $suite_name"
-			print_warning "Available suites: unit, integration, smoke, all, fast, custom-generator"
-			exit 1
-			;;
-	esac
-	
+
+	# Run tests with pattern from central configuration
+	print_status "Executing tests..."
+	mvn verify -T 12 \
+		-Pcoverage \
+		-Dmaven.test.failure.ignore=true \
+		-DfailIfNoTests=false \
+		-Dtest="$test_pattern" || TEST_FAILED=true
+
 	# Generate reports
 	generate_coverage_reports
-	
+
 	if [ "$TEST_FAILED" = true ]; then
 		print_failure "Some tests failed in suite: $suite_name"
 		print_warning "Reports have been generated despite test failures."
@@ -344,7 +356,7 @@ run_tests_with_suite() {
 # Function to run tests (default, without suite)
 run_tests() {
 	print_step "3" "Test Execution Phase (All Tests)"
-	
+
 	if [ "$SKIP_TESTS" = false ]; then
 		print_status "Discovering and running all test classes..."
 
@@ -374,9 +386,9 @@ run_tests() {
 # Function to generate coverage reports
 generate_coverage_reports() {
 	print_step "4" "Coverage Report Generation"
-	
+
 	print_subheader "Generating Individual Module Reports"
-	
+
 	cd org.xtext.example.mydsl
 	mvn jacoco:report -Pcoverage -Dmaven.test.failure.ignore=true || true
 	print_success "Main module coverage report generated"
@@ -415,7 +427,7 @@ generate_coverage_reports() {
 	cd ..
 
 	print_subheader "Generating Aggregate Coverage Report"
-	
+
 	if [ -d "jacoco-aggregate-report" ]; then
 		print_status "Generating aggregate coverage report (cross-module)..."
 
@@ -430,7 +442,9 @@ generate_coverage_reports() {
 		# Generate aggregate report
 		mvn verify -pl jacoco-aggregate-report -am -T 12 \
 			-Pcoverage \
-			-Dmaven.test.failure.ignore=true || true
+			-Dmaven.test.failure.ignore=true \
+			-DfailIfNoTests=false \
+			-Dtest="$test_pattern" || true
 
 		# Copy aggregate report
 		if [ -d "jacoco-aggregate-report/target/site/jacoco-aggregate" ]; then
@@ -444,7 +458,7 @@ generate_coverage_reports() {
 generate_site() {
 	if [ "$GENERATE_SITE" = true ]; then
 		print_step "5" "Site Generation Phase"
-		
+
 		print_status "Generating Maven site with reports..."
 		mvn site -T 12 -Dmaven.test.failure.ignore=true || true
 		print_success "Site generated at: ${PROJECT_DIR}/target/site/index.html"
@@ -454,7 +468,7 @@ generate_site() {
 # Function to generate summary report
 generate_summary() {
 	print_step "6" "Summary Report Generation"
-	
+
 	local suite_info=""
 	if [ -n "$TEST_SUITE" ]; then
 		suite_info="Test Suite: ${TEST_SUITE}"
@@ -523,7 +537,7 @@ EOF
 # Function to archive reports
 archive_reports() {
 	print_step "7" "Report Archiving"
-	
+
 	tar -czf "${REPORT_ARCHIVE}" \
 		-C "${PROJECT_DIR}" \
 		"test-reports" \
@@ -539,7 +553,7 @@ archive_reports() {
 open_reports() {
 	if [ "$SKIP_TESTS" = false ]; then
 		print_header "Test and Coverage Reports Ready"
-		
+
 		echo "Available reports:"
 
 		if [ -n "$TEST_SUITE" ]; then
@@ -601,20 +615,31 @@ main() {
 		list_test_suites
 		exit 0
 	fi
-	
+
 	if [ -n "$DESCRIBE_SUITE" ]; then
 		check_maven
 		describe_test_suite "$DESCRIBE_SUITE"
 		exit 0
 	fi
-	
+
+	if [ "$EXPORT_CONFIG" = true ]; then
+		check_maven
+		# Export configuration as properties
+		cd org.xtext.example.mydsl.tests
+		mvn compile -DskipTests -q
+		java -cp "target/classes:target/test-classes:$(mvn dependency:build-classpath -DincludeScope=test -q -Dmdep.outputFile=/dev/stdout)" \
+			${TEST_CONFIG_CLASS} export
+		cd ..
+		exit 0
+	fi
+
 	# Normal build and test flow
 	print_header "Build and Test Process Starting"
-	
+
 	if [ -n "$TEST_SUITE" ]; then
 		print_suite "Selected test suite: $TEST_SUITE"
 	fi
-	
+
 	echo "Configuration:"
 	echo "  Clean: $DO_CLEAN"
 	echo "  Skip Build: $SKIP_BUILD"
@@ -627,22 +652,22 @@ main() {
 	check_maven
 	clean_project
 	build_project
-	
+
 	if [ "$SKIP_TESTS" = false ]; then
 		if [ -n "$TEST_SUITE" ]; then
 			run_tests_with_suite "$TEST_SUITE"
 		else
-			run_tests
+			run_tests_with_suite "all" # Default to all tests
 		fi
 	fi
-	
+
 	generate_site
 	generate_summary
 	archive_reports
 	open_reports
 
 	print_header "Build and Test Process Completed"
-	
+
 	if [ -n "$TEST_SUITE" ]; then
 		print_success "Completed for suite: $TEST_SUITE"
 	else

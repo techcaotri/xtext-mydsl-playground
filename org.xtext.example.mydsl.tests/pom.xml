@@ -57,7 +57,12 @@
               <destFile>${project.build.directory}/jacoco.exec</destFile>
               <propertyName>tycho.testArgLine</propertyName>
               <append>true</append>
-              <!-- Include all classes, not just test module -->
+              <!-- Include ALL classes for coverage, not just those in executed tests -->
+              <includes>
+                <include>org.xtext.example.mydsl.*</include>
+                <include>org.xtext.example.mydsl.generator.*</include>
+                <include>org.xtext.example.mydsl.tests.*</include>
+              </includes>
             </configuration>
           </execution>
           <execution>
@@ -87,7 +92,7 @@
         </executions>
       </plugin>
 
-      <!-- Tycho Surefire - uses the tycho.testArgLine property -->
+      <!-- Tycho Surefire Plugin Configuration -->
       <plugin>
         <groupId>org.eclipse.tycho</groupId>
         <artifactId>tycho-surefire-plugin</artifactId>
@@ -96,13 +101,25 @@
           <argLine>${tycho.testArgLine}</argLine>
           <testFailureIgnore>true</testFailureIgnore>
           <useUIHarness>false</useUIHarness>
-          <!-- CRITICAL: Tell Tycho to use JUnit 5 -->
           <providerHint>junit5</providerHint>
+
+          <!-- Default includes - these will be overridden by -Dtest parameter from build script -->
           <includes>
             <include>**/*Test.class</include>
             <include>**/*Tests.class</include>
             <include>**/Test*.class</include>
           </includes>
+
+          <!-- Allow test pattern to be overridden by system property -->
+          <!-- When -Dtest is specified in build script, it takes precedence -->
+          <test>${test}</test>
+
+          <!-- Ensure all test classes are available for coverage analysis -->
+          <!-- This ensures aggregate coverage includes all tests regardless of which suite runs -->
+          <testClassesDirectory>${project.build.outputDirectory}</testClassesDirectory>
+          <additionalClasspathElements>
+            <additionalClasspathElement>${project.basedir}/../org.xtext.example.mydsl/target/classes</additionalClasspathElement>
+          </additionalClasspathElements>
         </configuration>
       </plugin>
 
