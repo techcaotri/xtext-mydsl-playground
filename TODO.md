@@ -4,3 +4,4 @@
     * The Java file is not relevant -> removed
     * The `build-and-test.sh` defines the test classes of the running test suite which will be reflected in the Surefire Test report via -Dtest= argument.
     * The `pom.xml` defines which test classes are running.
+    * TestSuiteManager.xtend supports querying the test suite.
