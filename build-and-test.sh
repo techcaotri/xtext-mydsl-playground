@@ -24,7 +24,7 @@ print_header() {
     
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
-    printf "${CYAN}║${NC}%*s${WHITE}%s${NC}%*s${CYAN}║${NC}\n" $padding "" "$header_text" $((width - padding - ${#header_text})) ""
+    printf "${CYAN}║${NC}%*s${WHITE}%s${NC}%*s${CYAN}║${NC}\n" $padding "" "$header_text" $((width - padding - ${#header_text} - 2)) ""
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 }
