@@ -102,7 +102,6 @@
             <include>**/*Test.class</include>
             <include>**/*Tests.class</include>
             <include>**/Test*.class</include>
-            <include>**/AllTests.java</include>
           </includes>
         </configuration>
       </plugin>
